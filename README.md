@@ -299,7 +299,7 @@ AdGen_AI/
 |------|-------|-------|
 |<img width="120" height="120" alt="image" src="https://github.com/user-attachments/assets/797b4aa0-fcf5-4289-87a3-f2dbaf5ebf7e" />|<img width="120" height="120" alt="image" src="https://github.com/user-attachments/assets/0ef522e3-c04c-4f82-8005-d74892e439e8" />|<img width="120" height="120" alt="image" src="https://github.com/user-attachments/assets/55d8e285-6121-42fd-bc45-c9820b365467" />|
 |[![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dongjin-1203)|[![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/leejaeyoung-cpu)|[![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/mjuik98)|
-|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](hambur1203@gmail.com)|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](brookinljy@gmail.com)|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mjuik98@gmail.com)|
+|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:hambur1203@gmail.com)|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:brookinljy@gmail.com)|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:mjuik98@gmail.com)|
 
 ## 👨🏼‍💻 역할 분담
 
@@ -438,8 +438,8 @@ Final Days (01/27 - 01/28): 런칭
 
 ### 협업 일지
 - 지동진 ([개인 협업일지](링크 추가 예정))
-- 개발자2 ([개인 협업일지](링크 추가 예정))
-- 개발자3 ([개인 협업일지](링크 추가 예정))
+- 이재영 ([개인 협업일지](링크 추가 예정))
+- 최귀빈 ([개인 협업일지](링크 추가 예정))
 
 ---
 
