@@ -280,7 +280,7 @@ AdGen_AI/
 - **image_processor.py**: 이미지 처리 파이프라인 orchestration
 - **background_remover.py**: RMBG-2.0 모델로 누끼 제거
 - **background_generator.py**: Stable Diffusion XL로 배경 생성
-- **caption_generator.py**: GPT-4o로 캡션 및 해시태그 생성
+- **caption_generator.py**: GPT-5로 캡션 및 해시태그 생성
 - **ner_parser.py**: spaCy로 명령어에서 상품 정보 추출
 
 ### Models (`/models`)
@@ -306,7 +306,7 @@ AdGen_AI/
 |지동진|이재영|최귀빈|
 |------|-------|-------|
 |PM / 풀스택 개발 / 텍스트 AI / 데이터 엔지니어링|이미지 추출 모델 개발|이미지 생성 모델 개발|
-|프로젝트 전체 기획 및 일정 관리. Next.js 프론트엔드 개발 (UI/UX). FastAPI 백엔드 아키텍처 설계. GPT-4o 캡션 생성 시스템 구축. NER 명령어 파싱 모델 개발. 인증 및 결제 시스템 통합. 배포 환경 구축 (Docker, GCP). 데이터 엔지니어링 전반 업무|RMBG-2.0 누끼 제거 파이프라인 구축. 이미지 전처리 및 후처리. 색감 보정 알고리즘 개발. Celery 비동기 작업 처리 최적화.|Stable Diffusion XL 배경 생성 시스템. ControlNet 통합 및 구도 제어. Fashion LoRA fine-tuning. 3가지 스타일 프롬프트 엔지니어링.|
+|프로젝트 전체 기획 및 일정 관리. Next.js 프론트엔드 개발 (UI/UX). FastAPI 백엔드 아키텍처 설계. GPT-5 캡션 생성 시스템 구축. NER 명령어 파싱 모델 개발. 인증 및 결제 시스템 통합. 배포 환경 구축 (Docker, GCP). 데이터 엔지니어링 전반 업무|RMBG-2.0 누끼 제거 파이프라인 구축. 이미지 전처리 및 후처리. 색감 보정 알고리즘 개발. Celery 비동기 작업 처리 최적화.|Stable Diffusion XL 배경 생성 시스템. ControlNet 통합 및 구도 제어. Fashion LoRA fine-tuning. 3가지 스타일 프롬프트 엔지니어링.|
 
 ---
 
@@ -325,7 +325,7 @@ Week 1 (12/30 - 01/05): 기반 구축
 Week 2 (01/06 - 01/12): AI 파이프라인 개발
 ├─ RMBG-2.0 누끼 제거 연동
 ├─ Stable Diffusion XL 배경 생성
-├─ GPT-4o 캡션 생성
+├─ GPT-5 캡션 생성
 ├─ NER 명령어 파싱
 └─ Celery 비동기 처리
 
@@ -375,7 +375,7 @@ Final Days (01/27 - 01/28): 런칭
 - **인스타그램 규격**: 1:1, 4:5, 9:16 자동 최적화
 
 ### 2. 텍스트 자동 생성
-- **캡션 작성**: GPT-4o로 패션 톤앤매너 적용
+- **캡션 작성**: GPT-5로 패션 톤앤매너 적용
 - **해시태그 추천**: 트렌드 분석 및 지역 태그 자동 삽입
 - **이모지 삽입**: 자연스러운 이모지 배치
 
