@@ -297,9 +297,9 @@ AdGen_AI/
 
 |지동진|이재영|최귀빈|
 |------|-------|-------|
-|<!-- 사진 추가 -->|<!-- 사진 추가 -->|<!-- 사진 추가 -->|
-|![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)|![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)|![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)|
-|![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)|![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)|![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)|
+|<img width="120" height="120" alt="image" src="https://github.com/user-attachments/assets/797b4aa0-fcf5-4289-87a3-f2dbaf5ebf7e" />|<img width="120" height="120" alt="image" src="https://github.com/user-attachments/assets/0ef522e3-c04c-4f82-8005-d74892e439e8" />|<img width="120" height="120" alt="image" src="https://github.com/user-attachments/assets/55d8e285-6121-42fd-bc45-c9820b365467" />|
+|[![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Dongjin-1203)|[![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/leejaeyoung-cpu)|[![GitHub](https://img.shields.io/badge/github-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/mjuik98)|
+|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](hambur1203@gmail.com)|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](brookinljy@gmail.com)|[![Gmail](https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mjuik98@gmail.com)|
 
 ## 👨🏼‍💻 역할 분담
 
