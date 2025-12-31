@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
+from app.api.routes import auth
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -32,6 +33,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 라우터 등록
+app.include_router(auth.router)
 
 # 루트 엔드포인트
 @app.get("/")
