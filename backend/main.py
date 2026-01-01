@@ -45,11 +45,7 @@ app.include_router(contents.router)
 # 루트 엔드포인트
 @app.get("/")
 def read_root():
-    return {
-        "message": "AdGen AI API",  
-        "version": "0.1.0",
-        "status": "running"
-    }
+    return {"message": "AdGen AI Backend - Cloud Run Deployed!"}
 
 # 헬스 체크
 @app.get("/health")
