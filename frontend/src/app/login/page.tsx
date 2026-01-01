@@ -32,6 +32,8 @@ export default function LoginPage() {
             // 로그인 API 호출
             const response = await authAPI.login(formData);
             const token = response.data.access_token;
+
+            localStorage.setItem('token', token);
             const userResponse = await authAPI.getMe();
             
             // 전역 상태 저장
