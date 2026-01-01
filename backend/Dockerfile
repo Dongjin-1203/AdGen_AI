@@ -1,32 +1,28 @@
-# Python 3.12 slim 이미지로 변경
 FROM python:3.12-slim
 
-# 작업 디렉토리 설정
 WORKDIR /app
 
-# 시스템 패키지 업데이트 및 필요한 라이브러리 설치
-RUN apt-get update && apt-get install -y \
+# 환경 변수
+ENV PYTHONUNBUFFERED=1 \
+    PORT=8080
+
+# 시스템 패키지
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
-    g++ \
     libpq-dev \
-    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
 # Python 패키지 업그레이드
-RUN pip install --upgrade pip setuptools wheel
+RUN pip install --upgrade pip
 
-# requirements.txt 복사 및 설치
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# FastAPI와 Uvicorn만 설치
+RUN pip install fastapi uvicorn[standard]
 
-# 애플리케이션 코드 복사
-COPY . .
-
-# uploads 디렉토리 생성
-RUN mkdir -p uploads
+# 앱 코드 복사
+COPY main.py .
 
 # 포트 노출
-EXPOSE 8000
+EXPOSE 8080
 
-# 서버 실행
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 시작 명령 - 간단하고 명확하게
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--log-level", "info"]
