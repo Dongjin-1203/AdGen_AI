@@ -14,7 +14,7 @@ from app.db.base import get_db
 from app.models.schemas import User
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
 from app.core.security import (
-    get_password_hash,
+    hash_password,
     verify_password,
     create_access_token,
     decode_access_token
@@ -27,9 +27,8 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
-)-> User:
+) -> User:
     """JWT 토큰에서 현재 사용자 가져오기"""
-    # 구현
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -53,6 +52,7 @@ async def get_current_user(
     
     return user
 
+
 @router.post("/signup", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def signup(
     user_data: UserCreate,
@@ -68,7 +68,7 @@ async def signup(
         )
     
     # 2. 비밀번호 해싱
-    hashed_password = get_password_hash(user_data.password)
+    hashed_password = hash_password(user_data.password)
     
     # 3. 사용자 생성
     new_user = User(

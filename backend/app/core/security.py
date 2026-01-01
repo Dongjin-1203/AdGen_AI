@@ -5,7 +5,8 @@
 """
 import bcrypt
 from datetime import datetime, timedelta
-from jose import jwt
+from jose import jwt, JWTError
+from typing import Optional
 from config import settings
 
 # 비밀번호 해싱
@@ -36,3 +37,16 @@ def create_access_token(data: dict) -> str:
         algorithm=settings.JWT_ALGORITHM
     )
     return encoded_jwt
+
+# JWT 토큰 검증
+def decode_access_token(token: str) -> Optional[dict]:
+    """JWT 액세스 토큰 검증 및 디코드"""
+    try:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM]
+        )
+        return payload
+    except JWTError:
+        return None
