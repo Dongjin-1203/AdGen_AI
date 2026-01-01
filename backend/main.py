@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from config import settings
 from app.api.routes import auth, contents
@@ -33,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 정적 파일 제공
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 # 라우터 등록
 app.include_router(auth.router)
