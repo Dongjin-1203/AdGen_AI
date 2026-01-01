@@ -13,5 +13,4 @@ python-multipart==0.0.12
 bcrypt==4.1.2
 Pillow==10.1.0
 google-cloud-storage==2.18.2
-google-cloud-sql-connector==1.13.0
-pg8000==1.31.2
+cloud-sql-python-connector[pg8000]==1.13.0
