@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone', // Docker 최적화
+  output: 'standalone', // ← 이것이 중요!
   images: {
     remotePatterns: [
       {
@@ -14,6 +14,11 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'storage.googleapis.com',
         pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.run.app',
+        pathname: '/uploads/**',
       },
     ],
   },
