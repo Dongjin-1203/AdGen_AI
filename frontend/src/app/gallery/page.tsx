@@ -71,7 +71,11 @@ export default function Gallery() {
               >
                 <div className="aspect-square relative bg-gray-100">
                   <img
-                    src={`${API_URL}${content.thumbnail_url}`}
+                    src={
+                      content.thumbnail_url?.startsWith('http')
+                        ? content.thumbnail_url
+                        : `${API_URL}${content.thumbnail_url}`
+                    }
                     alt={content.product_name}
                     className="w-full h-full object-cover"
                   />

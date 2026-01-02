@@ -68,7 +68,11 @@ export default function ContentDetail() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="aspect-square relative bg-gray-100">
             <img
-              src={`${API_URL}${content.image_url}`}
+              src={
+                content.image_url?.startsWith('http')
+                  ? content.image_url
+                  : `${API_URL}${content.image_url}`
+              }
               alt={content.product_name}
               className="w-full h-full object-contain"
             />
