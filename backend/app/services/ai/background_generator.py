@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import torch
 import logging
 from PIL import Image
@@ -93,3 +94,6 @@ class SDXLGenerator:
         ).images
         
         return images[0]
+=======
+# 배경 생성
+>>>>>>> origin/main
