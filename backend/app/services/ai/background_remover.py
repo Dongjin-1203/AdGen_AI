@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from PIL import Image
 from rembg import remove
 import io
@@ -27,6 +26,3 @@ class BackgroundRemover:
         except Exception as e:
             logger.error(f"Error during background removal: {str(e)}")
             raise e
-=======
-# 누끼 제거
->>>>>>> origin/main
