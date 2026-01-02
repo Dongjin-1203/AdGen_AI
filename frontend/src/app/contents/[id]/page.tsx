@@ -2,12 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { contentAPI } from '@/lib/api';
+import { contentAPI, API_URL } from '@/lib/api';
 import { Content } from '@/types';
 import Navbar from '@/components/Navbar';
-
-// API URL 추가
-const API_URL = 'https://adgen-backend-613605394208.asia-northeast3.run.app';
 
 export default function ContentDetail() {
   const params = useParams();
@@ -83,21 +80,26 @@ export default function ContentDetail() {
             <div className="space-y-3">
               <div className="flex">
                 <span className="font-semibold w-24">카테고리:</span>
-                <span>{content.category}</span>
+                <span>{content.category || '-'}</span>
               </div>
               <div className="flex">
                 <span className="font-semibold w-24">색상:</span>
-                <span>{content.color}</span>
+                <span>{content.color || '-'}</span>
               </div>
               <div className="flex">
                 <span className="font-semibold w-24">가격:</span>
                 <span className="text-blue-600 font-bold text-xl">
-                  {content.price.toLocaleString()}원
+                  {content.price?.toLocaleString() || '0'}원
                 </span>
               </div>
               <div className="flex">
                 <span className="font-semibold w-24">업로드:</span>
-                <span>{new Date(content.created_at).toLocaleString('ko-KR')}</span>
+                <span>
+                  {content.created_at 
+                    ? new Date(content.created_at).toLocaleString('ko-KR')
+                    : '-'
+                  }
+                </span>
               </div>
             </div>
           </div>
