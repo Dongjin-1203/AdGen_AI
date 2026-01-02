@@ -46,12 +46,7 @@ export default function Navbar() {
             >
               갤러리
             </button>
-            <button
-              onClick={() => router.push('/test')}
-              className="text-gray-700 hover:text-blue-600"
-            >
-              테스트
-            </button>
+            {/* 테스트 버튼 제거 */}
             
             {user && (
               <div className="flex items-center space-x-4">

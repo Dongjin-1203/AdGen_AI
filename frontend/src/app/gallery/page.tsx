@@ -2,12 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { contentAPI } from '@/lib/api';
+import { contentAPI, API_URL } from '@/lib/api';
 import { Content } from '@/types';
 import Navbar from '@/components/Navbar';
-
-// API URL 추가
-const API_URL = 'https://adgen-backend-613605394208.asia-northeast3.run.app';
 
 export default function Gallery() {
   const [contents, setContents] = useState<Content[]>([]);
@@ -81,9 +78,11 @@ export default function Gallery() {
                 </div>
                 <div className="p-4">
                   <h3 className="font-semibold text-lg mb-2">{content.product_name}</h3>
-                  <p className="text-gray-600 text-sm mb-1">카테고리: {content.category}</p>
-                  <p className="text-gray-600 text-sm mb-1">색상: {content.color}</p>
-                  <p className="text-blue-600 font-bold">{content.price.toLocaleString()}원</p>
+                  <p className="text-gray-600 text-sm mb-1">카테고리: {content.category || '-'}</p>
+                  <p className="text-gray-600 text-sm mb-1">색상: {content.color || '-'}</p>
+                  <p className="text-blue-600 font-bold">
+                    {content.price?.toLocaleString() || '0'}원
+                  </p>
                 </div>
               </div>
             ))}
