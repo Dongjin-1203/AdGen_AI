@@ -1,56 +1,92 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
+import { useEffect, useState } from 'react';
 
 export default function Navbar() {
-    const router = useRouter();
-    const { user, logout } = useAuthStore();
+  const router = useRouter();
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  const [mounted, setMounted] = useState(false);
 
-    const handleLogout = () => {
-        logout();
-        router.push('/login');
-    };
+  // 클라이언트 사이드에서만 렌더링
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleLogout = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('token');
+    }
+    logout();
+    router.push('/login');
+  };
+
+  // 서버 렌더링 시 기본 Navbar 표시
+  if (!mounted) {
     return (
-        <nav className="bg-white shadow-md py-4">
-            <div className="max-w-7xl mx-auto px-4 flex justify-between items-center">
-                <Link href="/" className="text-2xl font-bold text-blue-500">
-                    AdGen_AI
-                </Link>
-
-                {user ? (
-                    <div className="flex items-center gap-6">
-                        <Link href="/dashboard" className="text-gray-700 hover:text-blue-500">
-                            대시보드
-                        </Link>
-                        <Link href="/upload" className="text-gray-700 hover:text-blue-500">
-                            업로드
-                        </Link>
-                        <Link href="/gallery" className="text-gray-700 hover:text-blue-500">
-                            갤러리
-                        </Link>
-                        <span className="text-gray-600">
-                            {user.name}님
-                        </span>
-                        <button
-                            onClick={handleLogout}
-                            className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                        >
-                            로그아웃
-                        </button>
-                    </div>
-                ) : (
-                    <div className="flex gap-4">
-                        <Link href="/login" className="px-4 py-2 text-blue-500 border border-blue-500 rounded hover:bg-blue-50">
-                            로그인
-                        </Link>
-                        <Link href="/signup" className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
-                            회원가입
-                        </Link>
-                    </div>
-                )}
-            </div>
-        </nav>
+      <nav className="bg-white shadow-md">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+          <div className="flex justify-between items-center">
+            <h1 className="text-2xl font-bold text-blue-600">AdGen_AI</h1>
+          </div>
+        </div>
+      </nav>
     );
+  }
+
+  return (
+    <nav className="bg-white shadow-md">
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="flex justify-between items-center">
+          <h1 
+            className="text-2xl font-bold text-blue-600 cursor-pointer"
+            onClick={() => router.push('/dashboard')}
+          >
+            AdGen_AI
+          </h1>
+          
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => router.push('/dashboard')}
+              className="text-gray-700 hover:text-blue-600"
+            >
+              대시보드
+            </button>
+            <button
+              onClick={() => router.push('/upload')}
+              className="text-gray-700 hover:text-blue-600"
+            >
+              업로드
+            </button>
+            <button
+              onClick={() => router.push('/gallery')}
+              className="text-gray-700 hover:text-blue-600"
+            >
+              갤러리
+            </button>
+            <button
+              onClick={() => router.push('/test')}
+              className="text-gray-700 hover:text-blue-600"
+            >
+              테스트
+            </button>
+            
+            {user && (
+              <div className="flex items-center space-x-4">
+                <span className="text-gray-600">{user.name}님</span>
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                  로그아웃
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
 }

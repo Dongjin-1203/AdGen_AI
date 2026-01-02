@@ -1,8 +1,8 @@
 import axios from 'axios';
 import { User, SignupRequest, Token, Content } from '@/types';
 
-// 백엔드 URL 직접 지정 (임시)
-const API_URL = 'https://adgen-backend-613605394208.asia-northeast3.run.app';
+// 백엔드 URL 직접 지정
+export const API_URL = 'https://adgen-backend-613605394208.asia-northeast3.run.app';
 
 console.log('🔍 API_URL:', API_URL);
 
@@ -11,9 +11,12 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  // 브라우저 환경에서만 localStorage 접근
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
   }
   return config;
 });
