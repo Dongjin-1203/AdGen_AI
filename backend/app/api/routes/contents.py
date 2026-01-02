@@ -93,7 +93,6 @@ async def upload_content(
             contents,
             content_type=f"image/{file_ext[1:]}"
         )
-        blob.make_public()  # 공개 설정
         
         print(f"✅ Uploaded: {gcs_path}")
     except Exception as e:
@@ -120,7 +119,6 @@ async def upload_content(
             thumb_buffer.read(),
             content_type=f"image/{file_ext[1:]}"
         )
-        thumb_blob.make_public()
         
         print(f"✅ Uploaded thumbnail: {gcs_thumb_path}")
     except Exception as e:
