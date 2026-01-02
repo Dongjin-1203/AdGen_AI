@@ -98,14 +98,14 @@ async def upload_content(
     # ===== 3. DB 저장 =====
     
     # 3-1. 상대 경로 (URL로 사용)
-    original_url = f"/uploads/{current_user.user_id}/{unique_filename}"
+    image_url = f"/uploads/{current_user.user_id}/{unique_filename}"  # ← 수정!
     thumbnail_url = f"/uploads/{current_user.user_id}/{thumbnail_filename}"
     
     # 3-2. UserContent 객체 생성
     new_content = UserContent(
         content_id=str(uuid.uuid4()),
         user_id=current_user.user_id,
-        original_image_url=original_url,
+        image_url=image_url,  # ← 수정!
         thumbnail_url=thumbnail_url,
         product_name=product_name,
         category=category,
