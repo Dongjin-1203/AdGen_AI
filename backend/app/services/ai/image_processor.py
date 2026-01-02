@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 from PIL import Image
 import cv2
 import numpy as np
@@ -58,6 +57,3 @@ class ImageProcessor:
             new_size = (int(width * ratio), int(height * ratio))
             return image.resize(new_size, Image.Resampling.LANCZOS)
         return image
-=======
-# 이미지 처리
->>>>>>> origin/main
