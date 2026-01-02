@@ -30,10 +30,14 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# CORS 설정
+# CORS 설정 - 프론트엔드 URL 명시적으로 추가
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.allow_origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://adgen-frontend-613605394208.asia-northeast3.run.app",  # ← 프론트엔드 URL 추가
+        "https://*.run.app",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -64,5 +68,10 @@ def health():
         "version": "0.1.0",
         "environment": settings.ENVIRONMENT
     }
+
+# OPTIONS 메서드 명시적으로 처리 (디버깅용)
+@app.options("/{path:path}")
+async def options_handler(path: str):
+    return {"message": "OK"}
 
 print("✅ FastAPI 앱 초기화 완료")
