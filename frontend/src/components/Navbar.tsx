@@ -2,18 +2,11 @@
 
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/lib/store';
-import { useEffect, useState } from 'react';
 
 export default function Navbar() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
-  const [mounted, setMounted] = useState(false);
-
-  // 클라이언트 사이드에서만 렌더링
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
@@ -22,19 +15,6 @@ export default function Navbar() {
     logout();
     router.push('/login');
   };
-
-  // 서버 렌더링 시 기본 Navbar 표시
-  if (!mounted) {
-    return (
-      <nav className="bg-white shadow-md">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-blue-600">AdGen_AI</h1>
-          </div>
-        </div>
-      </nav>
-    );
-  }
 
   return (
     <nav className="bg-white shadow-md">
