@@ -11,8 +11,8 @@ import os
 import logging
 
 from config import settings
-from app.api.routes import auth, contents
-from app.api.v1 import image
+from app.api.routes import auth, contents, ai_generate
+from app.api.routes import processing as image
 
 # ===== 로깅 설정 =====
 logging.basicConfig(
@@ -81,6 +81,7 @@ logger.info("✅ 정적 파일 제공: /static")
 app.include_router(auth.router)
 app.include_router(contents.router)
 app.include_router(image.router, prefix="/api/v1", tags=["Image Processing"])
+app.include_router(ai_generate.router, prefix="/api/v1", tags=["ai"])
 
 logger.info("✅ 라우터 등록 완료: auth, contents, image")
 

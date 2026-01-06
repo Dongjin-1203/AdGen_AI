@@ -8,8 +8,8 @@ from PIL import Image, ImageDraw, ImageFilter, ImageEnhance
 from typing import Tuple
 import logging
 
-from app.core.color_correction import ColorCorrection
-from app.core.wrinkle_removal import WrinkleRemoval
+from app.services.ai.color import ColorCorrection
+from app.services.ai.wrinkle import WrinkleRemoval
 
 logger = logging.getLogger(__name__)
 

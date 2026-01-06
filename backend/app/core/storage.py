@@ -1,57 +1,99 @@
 """
-Google Cloud Storage 이미지 업로드 유틸리티
-개발: 로컬 파일 시스템 사용
-배포: GCS 사용
+GCS Storage Helper Functions
+업데이트: download_from_gcs, upload_to_gcs 추가
 """
-import os
-from pathlib import Path
-from google.cloud import storage
-from config import UPLOAD_DIR
 
-def upload_to_gcs(file_path: str, destination_blob_name: str) -> str:
+from google.cloud import storage
+from google.oauth2 import service_account
+from config import settings
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+_storage_client = None
+
+def get_storage_client():
+    """GCS 클라이언트 가져오기 (싱글톤)"""
+    global _storage_client
+    
+    if _storage_client is None:
+        if settings.GOOGLE_APPLICATION_CREDENTIALS:
+            credentials = service_account.Credentials.from_service_account_file(
+                settings.GOOGLE_APPLICATION_CREDENTIALS
+            )
+            _storage_client = storage.Client(credentials=credentials)
+        else:
+            _storage_client = storage.Client()
+        
+        logger.info("GCS Storage 클라이언트 초기화 완료")
+    
+    return _storage_client
+
+
+def download_from_gcs(gcs_path: str, bucket_name: Optional[str] = None) -> bytes:
+    """
+    GCS에서 파일 다운로드
+    
+    Args:
+        gcs_path: GCS 경로 (예: uploads/xxx.jpg)
+        bucket_name: 버킷명 (기본값: settings.GCS_BUCKET_NAME)
+    
+    Returns:
+        파일 바이트 데이터
+    """
+    try:
+        bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+        client = get_storage_client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(gcs_path)
+        
+        logger.info(f"Downloading from GCS: gs://{bucket_name}/{gcs_path}")
+        
+        data = blob.download_as_bytes()
+        
+        logger.info(f"Downloaded {len(data)} bytes")
+        return data
+        
+    except Exception as e:
+        logger.error(f"Error downloading from GCS: {e}", exc_info=True)
+        raise
+
+
+def upload_to_gcs(
+    file_data: bytes,
+    destination_path: str,
+    content_type: str = "image/jpeg",
+    bucket_name: Optional[str] = None
+) -> str:
     """
     GCS에 파일 업로드
     
     Args:
-        file_path: 로컬 파일 경로
-        destination_blob_name: GCS 내 경로 (예: user_id/filename.jpg)
+        file_data: 업로드할 파일 데이터
+        destination_path: GCS 경로 (예: ai_generated/xxx.jpg)
+        content_type: 파일 타입
+        bucket_name: 버킷명 (기본값: settings.GCS_BUCKET_NAME)
     
     Returns:
-        공개 URL
+        공개 URL (https://storage.googleapis.com/...)
     """
-    bucket_name = os.getenv("GCS_BUCKET_NAME")
-    
-    if not bucket_name:
-        # GCS 미설정 시 로컬 URL 반환
-        return f"/uploads/{destination_blob_name}"
-    
     try:
-        storage_client = storage.Client()
-        bucket = storage_client.bucket(bucket_name)
-        blob = bucket.blob(destination_blob_name)
+        bucket_name = bucket_name or settings.GCS_BUCKET_NAME
+        client = get_storage_client()
+        bucket = client.bucket(bucket_name)
+        blob = bucket.blob(destination_path)
         
-        blob.upload_from_filename(file_path)
+        logger.info(f"Uploading to GCS: gs://{bucket_name}/{destination_path}")
         
-        # 공개 URL 반환
-        return f"https://storage.googleapis.com/{bucket_name}/{destination_blob_name}"
+        blob.upload_from_string(file_data, content_type=content_type)
+        
+        # 공개 URL 생성
+        public_url = f"https://storage.googleapis.com/{bucket_name}/{destination_path}"
+        
+        logger.info(f"Upload complete: {public_url}")
+        return public_url
+        
     except Exception as e:
-        print(f"GCS upload error: {e}")
-        # 에러 시 로컬 URL 반환
-        return f"/uploads/{destination_blob_name}"
-
-def get_storage_url(relative_path: str) -> str:
-    """
-    저장소 URL 생성
-    
-    Args:
-        relative_path: 상대 경로 (예: user_id/filename.jpg)
-    
-    Returns:
-        전체 URL
-    """
-    bucket_name = os.getenv("GCS_BUCKET_NAME")
-    
-    if bucket_name:
-        return f"https://storage.googleapis.com/{bucket_name}/{relative_path}"
-    else:
-        return f"/uploads/{relative_path}"
+        logger.error(f"Error uploading to GCS: {e}", exc_info=True)
+        raise
