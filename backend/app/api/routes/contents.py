@@ -14,6 +14,7 @@ from pathlib import Path
 from PIL import Image
 import io
 from google.cloud import storage
+from google.oauth2 import service_account
 
 from app.db.base import get_db
 from app.models.schemas import UserContent, User
@@ -23,14 +24,36 @@ from config import settings
 
 router = APIRouter(prefix="/api/contents", tags=["Contents"])
 
-# GCS 설정
-storage_client = storage.Client()
-BUCKET_NAME = os.getenv("GCS_BUCKET_NAME", "adgen-uploads-2026")
-bucket = storage_client.bucket(BUCKET_NAME)
-
 # 허용된 이미지 확장자
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
 MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB
+
+# ===== GCS 클라이언트 (Lazy Initialization) =====
+_storage_client = None
+_bucket = None
+
+def get_gcs_bucket():
+    """GCS 버킷 가져오기 (Lazy Initialization)"""
+    global _storage_client, _bucket
+    
+    if _storage_client is None:
+        # credentials 로드
+        if settings.GOOGLE_APPLICATION_CREDENTIALS:
+            credentials = service_account.Credentials.from_service_account_file(
+                settings.GOOGLE_APPLICATION_CREDENTIALS
+            )
+            _storage_client = storage.Client(credentials=credentials)
+        else:
+            # 환경 변수 기반 (배포 환경)
+            _storage_client = storage.Client()
+        
+        # 버킷 설정
+        bucket_name = settings.GCS_BUCKET_NAME or "adgen-uploads-2026"
+        _bucket = _storage_client.bucket(bucket_name)
+        
+        print(f"✅ GCS 클라이언트 초기화 완료: {bucket_name}")
+    
+    return _bucket
 
 
 @router.post("/upload", response_model=ContentResponse, status_code=status.HTTP_201_CREATED)
@@ -44,6 +67,9 @@ async def upload_content(
     db: Session = Depends(get_db)
 ):
     """이미지 업로드 및 콘텐츠 생성 (GCS 저장)"""
+    
+    # GCS 버킷 가져오기 (실제 사용 시점에 초기화)
+    bucket = get_gcs_bucket()
     
     # ===== 1. 파일 검증 =====
     
@@ -128,8 +154,9 @@ async def upload_content(
     # ===== 3. DB 저장 =====
     
     # 3-1. GCS 공개 URL
-    image_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{gcs_path}"
-    thumbnail_url = f"https://storage.googleapis.com/{BUCKET_NAME}/{gcs_thumb_path}"
+    bucket_name = settings.GCS_BUCKET_NAME or "adgen-uploads-2026"
+    image_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
+    thumbnail_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_thumb_path}"
     
     # 3-2. UserContent 객체 생성
     new_content = UserContent(

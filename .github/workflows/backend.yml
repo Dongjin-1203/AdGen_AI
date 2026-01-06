@@ -13,6 +13,7 @@ env:
   SERVICE_NAME: adgen-backend
   REGION: asia-northeast3
   IMAGE_NAME: adgen-backend
+  REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
 
 jobs:
   deploy:

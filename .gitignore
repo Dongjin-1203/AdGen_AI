@@ -157,3 +157,6 @@ yarn-error.log*
 *.tar
 *.gz
 *.rar
+
+# GCP 보안
+backend/adgen-ai-deploy-66686fad93e1.json
