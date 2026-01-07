@@ -20,6 +20,7 @@ backend/ENV/
 backend/.env
 backend/.env.local
 backend/.env.*.local
+backend/.env.production
 
 # Uploads (실제 이미지 파일만 무시, 폴더 구조는 유지)
 backend/uploads/*
