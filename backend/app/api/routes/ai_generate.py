@@ -13,7 +13,7 @@ import logging
 from typing import Optional
 
 from app.db.base import get_db
-from app.schemas.content import ContentResponse
+from app.models.schemas import UserContent
 from app.services.ai.replicate_generator import ReplicateBackgroundGenerator
 from app.services.ai.style_prompts import StylePrompts
 from app.core.storage import download_from_gcs, upload_to_gcs
@@ -65,8 +65,8 @@ async def generate_ad_from_content(
     start_time = time.time()
     
     try:
-        # 1. 콘텐츠 조회
-        content = db.query(ContentResponse).filter(ContentResponse.content_id == content_id).first()
+        # 1. 콘텐츠 조회 (✅ UserContent 모델 사용)
+        content = db.query(UserContent).filter(UserContent.content_id == content_id).first()
         if not content:
             raise HTTPException(status_code=404, detail="Content not found")
         
