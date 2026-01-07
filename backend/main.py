@@ -41,6 +41,23 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 서버 시작")
     logger.info(f"📍 환경: {settings.ENVIRONMENT}")
     
+    # ===== SQLite 테이블 자동 생성 =====
+    try:
+        from app.db.base import Base, engine
+        logger.info("🔧 데이터베이스 테이블 생성 중...")
+        Base.metadata.create_all(bind=engine)
+        logger.info("✅ 데이터베이스 테이블 생성 완료")
+        
+        # 생성된 테이블 목록 출력
+        from sqlalchemy import inspect
+        inspector = inspect(engine)
+        tables = inspector.get_table_names()
+        logger.info(f"📋 생성된 테이블: {', '.join(tables)}")
+        
+    except Exception as e:
+        logger.error(f"❌ 데이터베이스 초기화 실패: {e}")
+        logger.exception(e)
+    
     yield
     
     logger.info("👋 서버 종료")
