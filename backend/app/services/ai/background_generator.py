@@ -133,7 +133,7 @@ class SDXLGenerator:
         style: str = "minimal",
         negative_prompt: str = "",
         num_inference_steps: int = 30,
-        controlnet_conditioning_scale: float = 0.5
+        controlnet_conditioning_scale: float = 1.0
     ) -> Image.Image:
         
         if self.pipe is None:

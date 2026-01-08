@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     
     # ===== GCS =====
     GCS_BUCKET_NAME: Optional[str] = None
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None  # ✅ 추가
+    
+    # ===== Replicate API =====
+    REPLICATE_API_TOKEN: Optional[str] = None  # ✅ 새로 추가
     
     # ===== CORS =====
     allow_origins: List[str] = [
@@ -42,7 +46,7 @@ class Settings(BaseSettings):
             return self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/adgen_ai"
     
     class Config:
-        env_file = ".env"
+        env_file = ".env.local"
         case_sensitive = True
         env_file_encoding = 'utf-8'
 

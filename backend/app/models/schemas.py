@@ -58,7 +58,7 @@ class UserContent(Base):
     user_id = Column(String(36), ForeignKey("users.user_id"))
     
     # 이미지
-    original_image_url = Column(String(1000), nullable=False)
+    image_url = Column(String(1000), nullable=False)
     thumbnail_url = Column(String(1000), nullable=True)
     
     # 사용자 입력

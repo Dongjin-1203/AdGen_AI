@@ -1,3 +1,6 @@
+"""
+스타일별 AI 생성 프롬프트
+"""
 from typing import Dict, Any
 
 class StylePrompts:

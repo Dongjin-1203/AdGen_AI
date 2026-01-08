@@ -1,80 +1,79 @@
+"""
+Database configuration
+Supports both SQLite and Cloud SQL based on DATABASE_URL
+"""
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
-from typing import Generator
-from config import settings
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 import os
+import logging
 
-def get_database_engine():
-    """환경에 따라 DB 엔진 생성"""
+logger = logging.getLogger(__name__)
+
+# DATABASE_URL 읽기
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+logger.info(f"🔧 DATABASE_URL: {DATABASE_URL[:50] if DATABASE_URL else 'Not set'}...")
+
+# SQLite vs PostgreSQL 판단
+if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
+    # ===== SQLite 설정 =====
+    logger.info("📁 Using SQLite database")
     
-    # Cloud Run (프로덕션) - Cloud SQL Connector 사용
-    if settings.ENVIRONMENT == "production" and settings.CLOUD_SQL_CONNECTION_NAME:
-        try:
-            from google.cloud.sql.connector import Connector
-            import pg8000
-            
-            connector = Connector()
-            
-            def getconn():
-                conn = connector.connect(
-                    settings.CLOUD_SQL_CONNECTION_NAME,
-                    "pg8000",
-                    user=settings.DB_USER,
-                    password=settings.DB_PASSWORD,
-                    db=settings.DB_NAME,
-                )
-                return conn
-            
-            engine = create_engine(
-                "postgresql+pg8000://",
-                creator=getconn,
-                echo=settings.DEBUG,
-                pool_pre_ping=True
-            )
-            print("✅ Cloud SQL Connector 연결 성공")
-            return engine
-            
-        except Exception as e:
-            print(f"⚠️ Cloud SQL Connector 실패, 일반 연결 시도: {e}")
-            # Fallback: 일반 연결
-            engine = create_engine(
-                settings.CLOUD_SQL_URL,
-                echo=settings.DEBUG,
-                pool_pre_ping=True
-            )
-            return engine
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        echo=False
+    )
     
-    # 로컬 개발
-    else:
-        if not settings.DATABASE_URL:
-            print("⚠️ DATABASE_URL이 없습니다. 기본값 사용")
-        
-        engine = create_engine(
-            settings.CLOUD_SQL_URL,  # 로컬은 DATABASE_URL 사용
-            echo=settings.DEBUG,
-            pool_pre_ping=True
+elif DATABASE_URL and DATABASE_URL.startswith("postgresql"):
+    # ===== PostgreSQL 직접 연결 =====
+    logger.info("🐘 Using PostgreSQL (direct connection)")
+    
+    engine = create_engine(
+        DATABASE_URL,
+        echo=False
+    )
+    
+else:
+    # ===== Cloud SQL Connector 사용 (환경 변수 기반) =====
+    logger.info("☁️ Using Cloud SQL Connector")
+    
+    from google.cloud.sql.connector import Connector
+    from config import settings
+    
+    connector = Connector()
+    
+    def getconn():
+        """Cloud SQL 연결 생성"""
+        conn = connector.connect(
+            settings.CLOUD_SQL_CONNECTION_NAME,
+            "pg8000",
+            user=settings.DB_USER,
+            password=settings.DB_PASSWORD,
+            db=settings.DB_NAME
         )
-        print("✅ 로컬 PostgreSQL 연결 성공")
-        return engine
+        return conn
+    
+    engine = create_engine(
+        "postgresql+pg8000://",
+        creator=getconn,
+        echo=False
+    )
 
-# 엔진 생성
-engine = get_database_engine()
-
-# 세션 팩토리
-SessionLocal = sessionmaker(
-    bind=engine,
-    autocommit=False,
-    autoflush=False
-)
-
-# Base 클래스
+# Base 클래스 생성
 Base = declarative_base()
 
-# 의존성 주입
-def get_db() -> Generator:
-    """FastAPI Depends()에서 사용"""
+# 세션 팩토리
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Dependency
+def get_db():
+    """데이터베이스 세션 의존성"""
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+logger.info("✅ Database configuration loaded")
