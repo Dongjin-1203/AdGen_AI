@@ -7,6 +7,7 @@ class StylePrompts:
     MINIMAL = "minimal"
     EMOTIONAL = "emotional"
     STREET = "street"
+    INSTAGRAM = "instagram"
 
     PROMPTS: Dict[str, Dict[str, str]] = {
         MINIMAL: {
@@ -20,6 +21,10 @@ class StylePrompts:
         STREET: {
             "positive": "urban street style, concrete texture, city background, vibrant colors, hip hop vibe, neon lights, high contrast, dynamic lighting, fashion photography, trendy, sharp",
             "negative": "rural, rustic, vintage, soft, pastel, plain, studio background, boring, dull, low quality"
+        },
+        INSTAGRAM: {
+            "positive": "instagram aesthetic, lifestyle photography, influencer style, shot on iphone, soft natural lighting, cafe background, high engagement, trendy, social media feed, 4k",
+            "negative": "ugly, distorted, low quality, watermark, text, bad composition, oversaturated, blurry"
         }
     }
 
