@@ -23,10 +23,13 @@ class Settings(BaseSettings):
     
     # ===== GCS =====
     GCS_BUCKET_NAME: Optional[str] = None
-    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None  # ✅ 추가
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None  
     
     # ===== Replicate API =====
-    REPLICATE_API_TOKEN: Optional[str] = None  # ✅ 새로 추가
+    REPLICATE_API_TOKEN: Optional[str] = None  
+
+    # ===== Google Gemini API ===== 
+    GOOGLE_API_KEY: Optional[str] = None
     
     # ===== CORS =====
     allow_origins: List[str] = [
@@ -39,7 +42,6 @@ class Settings(BaseSettings):
         """Cloud SQL 또는 로컬 DB URL 반환"""
         # Cloud Run 환경
         if self.ENVIRONMENT == "production" and self.CLOUD_SQL_CONNECTION_NAME:
-            # Cloud SQL Connector는 별도 처리 (base.py에서)
             return f"postgresql+pg8000://{self.DB_USER}:{self.DB_PASSWORD}@/{self.DB_NAME}?unix_sock=/cloudsql/{self.CLOUD_SQL_CONNECTION_NAME}/.s.PGSQL.5432"
         # 로컬 환경
         else:

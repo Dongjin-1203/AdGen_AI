@@ -13,7 +13,8 @@ import logging
 from typing import Optional
 
 from app.db.base import get_db
-from app.models.schemas import UserContent
+from app.models.schemas import UserContent, User, GenerationHistory  
+from app.api.routes.auth import get_current_user  
 from app.services.ai.replicate_generator import ReplicateBackgroundGenerator
 from app.services.ai.style_prompts import StylePrompts
 from app.core.storage import download_from_gcs, upload_to_gcs
@@ -33,72 +34,51 @@ def get_replicate_generator() -> ReplicateBackgroundGenerator:
         replicate_generator = ReplicateBackgroundGenerator(api_token=api_token)
     return replicate_generator
 
-
 router = APIRouter()
-
 
 @router.post("/generate-ad")
 async def generate_ad_from_content(
     content_id: str = Form(..., description="업로드된 콘텐츠 ID"),
     style: str = Form(default="minimal", description="스타일: vintage, modern, minimal, natural, luxury"),
+    prompt: Optional[str] = Form(None, description="사용자 추가 요청"), 
+    current_user: User = Depends(get_current_user),  
     db: Session = Depends(get_db)
 ):
-    """
-    이미 업로드된 콘텐츠로 AI 광고 생성
-    
-    Flow:
-    1. content_id로 콘텐츠 조회
-    2. GCS에서 원본 이미지 다운로드
-    3. 스타일에 맞는 프롬프트 생성
-    4. AI 배경 생성 (Replicate SDXL)
-    5. 결과를 GCS에 저장
-    6. URL 반환
-    
-    Args:
-        content_id: 업로드된 콘텐츠 ID
-        style: AI 스타일 (vintage/modern/minimal/natural/luxury)
-    
-    Returns:
-        result_url: 생성된 이미지 GCS URL
-        processing_time: 처리 시간 (초)
-    """
+    """이미 업로드된 콘텐츠로 AI 광고 생성"""
     start_time = time.time()
     
     try:
-        # 1. 콘텐츠 조회 (✅ UserContent 모델 사용)
+        # 1. 콘텐츠 조회
         content = db.query(UserContent).filter(UserContent.content_id == content_id).first()
         if not content:
             raise HTTPException(status_code=404, detail="Content not found")
         
+        # 본인 콘텐츠인지 확인 ⭐ 추가!
+        if content.user_id != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
         logger.info(f"[AI Generate] Starting for content_id={content_id}, style={style}")
         
-        # 2. GCS에서 원본 이미지 다운로드
-        # image_url 예: https://storage.googleapis.com/bucket-name/uploads/xxx.jpg
-        # 또는 /uploads/xxx.jpg (로컬)
+        # 2-4. 기존 로직 동일 (GCS 다운로드, 프롬프트, AI 생성, 업로드)
+        # ... (기존 코드)
         
         image_url = content.image_url
         if not image_url:
             raise HTTPException(status_code=400, detail="No image URL in content")
         
-        # GCS 경로 추출
         if image_url.startswith('http'):
-            # https://storage.googleapis.com/bucket-name/uploads/xxx.jpg
-            # → uploads/xxx.jpg
             gcs_path = '/'.join(image_url.split('/')[-2:])
         else:
-            # /uploads/xxx.jpg → uploads/xxx.jpg
             gcs_path = image_url.lstrip('/')
         
         logger.info(f"[AI Generate] Downloading from GCS: {gcs_path}")
         
-        # GCS에서 다운로드
         image_bytes = download_from_gcs(gcs_path)
         original_image = Image.open(io.BytesIO(image_bytes))
         
         logger.info(f"[AI Generate] Image loaded: {original_image.size}")
         
-        # 3. 스타일 프롬프트 생성
-        # 스타일 매핑 (프론트엔드 → 백엔드)
+        # 스타일 프롬프트 생성
         style_map = {
             'minimal': 'minimal',
             'vintage': 'emotional',
@@ -109,54 +89,70 @@ async def generate_ad_from_content(
         
         mapped_style = style_map.get(style.lower(), 'minimal')
         prompt_dict = StylePrompts.get_prompt(mapped_style)
-        prompt = prompt_dict.get('positive', '')
+        base_prompt = prompt_dict.get('positive', '')
+        
+        # 사용자 프롬프트 추가 
+        final_prompt = base_prompt
+        if prompt:
+            final_prompt = f"{base_prompt}, {prompt}"
         
         logger.info(f"[AI Generate] Style: {style} → {mapped_style}")
-        logger.info(f"[AI Generate] Prompt: {prompt}")
+        logger.info(f"[AI Generate] Prompt: {final_prompt}")
         
-        # 4. AI 배경 생성
+        # AI 배경 생성
         generator = get_replicate_generator()
-        
-        # 스타일에 맞는 프롬프트로 생성
         result_image = generator.generate_background(
             product_image=original_image,
-            prompt_text=prompt,
+            prompt_text=final_prompt,
             aspect_ratio='square',
             style=mapped_style
         )
         
         logger.info(f"[AI Generate] Background generated: {result_image.size}")
         
-        # 5. GCS에 업로드
-        # 파일명: ai_generated/style_contentid_timestamp.jpg
+        # GCS에 업로드
         timestamp = int(time.time())
         filename = f"ai_generated/{style}_{content_id}_{timestamp}.jpg"
         
-        # 이미지를 바이트로 변환
         img_byte_arr = io.BytesIO()
         result_image.save(img_byte_arr, format='JPEG', quality=95)
         img_byte_arr.seek(0)
         
-        # GCS 업로드
         result_url = upload_to_gcs(
             file_data=img_byte_arr.getvalue(),
             destination_path=filename,
             content_type='image/jpeg'
         )
         
-        # 처리 시간
         processing_time = time.time() - start_time
         
+        # ===== 5. 히스토리 저장 ===== 
+        new_history = GenerationHistory(
+            history_id=str(uuid.uuid4()),
+            content_id=content_id,
+            user_id=current_user.user_id, 
+            style=style,
+            prompt=prompt,  # 사용자 입력 프롬프트
+            result_url=result_url,
+            processing_time=round(processing_time, 2)
+        )
+        
+        db.add(new_history)
+        db.commit()
+        db.refresh(new_history)
+        
         logger.info(f"[AI Generate] Completed in {processing_time:.2f}s")
+        logger.info(f"[AI Generate] History saved: {new_history.history_id}")
         logger.info(f"[AI Generate] Result URL: {result_url}")
         
         return {
             "success": True,
+            "history_id": new_history.history_id,  
             "result_url": result_url,
             "processing_time": round(processing_time, 2),
             "style": style,
             "content_id": content_id,
-            "prompt": prompt,
+            "prompt": final_prompt,
             "dimensions": {
                 "width": result_image.width,
                 "height": result_image.height

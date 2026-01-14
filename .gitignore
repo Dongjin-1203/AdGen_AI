@@ -161,3 +161,6 @@ yarn-error.log*
 
 # GCP 보안
 backend/adgen-ai-deploy-66686fad93e1.json
+
+# 이미지 파일 및 폴더
+backend/test_images/
