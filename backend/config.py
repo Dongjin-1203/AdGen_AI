@@ -48,7 +48,7 @@ class Settings(BaseSettings):
             return self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/adgen_ai"
     
     class Config:
-        env_file = ".env.local"
+        env_file = ".env"
         case_sensitive = True
         env_file_encoding = 'utf-8'
 

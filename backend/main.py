@@ -163,4 +163,4 @@ async def options_handler(path: str):
     return {"message": "OK"}
 
 logger.info("✅ FastAPI 앱 초기화 완료")
-logger.info(f"📍 문서: http://localhost:{os.getenv('PORT', '8080')}/docs")
+logger.info(f"📍 문서: http://localhost:{os.getenv('PORT', '8000')}/docs")

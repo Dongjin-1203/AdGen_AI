@@ -135,15 +135,20 @@ async def upload_content(
     except Exception as e:
         print(f"❌ Thumbnail Upload Error: {e}")
     
-    # ===== 3. Vision AI 분석 ===== ⭐ 수정!
+    # ===== 3. Vision AI 분석 =====
     vision_data = {}
-    
+
     try:
-        # 임시 파일로 저장 (ProductAnalyzer는 로컬 파일 경로 필요)
+        # 임시 파일로 저장
         with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
             tmp_file.write(contents)
             tmp_path = tmp_file.name
         
+        print(f"\n{'='*60}")
+        print(f"🔍 Vision AI 분석 시작")
+        print(f"{'='*60}")
+        print(f"임시 파일: {tmp_path}")
+
         # Vision AI 분석
         analyzer = ProductAnalyzer(provider="gemini")
         vision_result = await analyzer.analyze(tmp_path)
@@ -151,24 +156,35 @@ async def upload_content(
         # 임시 파일 삭제
         os.unlink(tmp_path)
         
+        print(f"📊 Vision AI 결과: {vision_result}")
+        
         if vision_result.get('success'):
             vision_data = {
                 'category': vision_result.get('category'),
-                'color': vision_result.get('color'),
                 'sub_category': vision_result.get('sub_category'),
+                'color': vision_result.get('color'),
                 'material': vision_result.get('material'),
                 'fit': vision_result.get('fit'),
-                'style_tags': json.dumps(vision_result.get('style_tags', [])),
+                'style_tags': json.dumps(vision_result.get('style_tags', []), ensure_ascii=False),
                 'ai_confidence': vision_result.get('confidence')
             }
             print(f"✅ Vision AI 분석 완료: {vision_data['category']}, {vision_data['color']}")
         else:
             print(f"⚠️ Vision AI 분석 실패: {vision_result.get('error')}")
-    
+
     except Exception as e:
         print(f"⚠️ Vision AI 오류 (계속 진행): {e}")
+        import traceback
+        traceback.print_exc()
     
-    # ===== 4. DB 저장 ===== ⭐ 수정!
+    # 확인용 로그 출력
+    print(f"\n🔍 DB 저장 직전 vision_data:")
+    print(f"vision_data = {vision_data}")
+    print(f"type = {type(vision_data)}")
+    print(f"len = {len(vision_data)}")
+    print(f"keys = {vision_data.keys() if vision_data else 'None'}")
+
+    # ===== 4. DB 저장 =====
     bucket_name = settings.GCS_BUCKET_NAME or "adgen-uploads-2026"
     image_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
     thumbnail_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_thumb_path}"
@@ -249,3 +265,60 @@ async def get_content(
         )
     
     return content
+
+@router.patch("/{content_id}")
+async def update_content(
+    content_id: str,
+    product_name: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    sub_category: Optional[str] = Form(None),
+    color: Optional[str] = Form(None),
+    material: Optional[str] = Form(None),
+    fit: Optional[str] = Form(None),
+    style_tags: Optional[str] = Form(None),
+    price: Optional[str] = Form(None),
+    confirmed: bool = Form(False),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    콘텐츠 정보 수정 (Vision AI 결과 확인/수정 후)
+    """
+    # 본인 콘텐츠 확인
+    content = db.query(UserContent).filter(
+        UserContent.content_id == content_id,
+        UserContent.user_id == current_user.user_id
+    ).first()
+    
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    
+    # 수정
+    if product_name is not None:
+        content.product_name = product_name
+    if category is not None:
+        content.category = category
+    if sub_category is not None:
+        content.sub_category = sub_category
+    if color is not None:
+        content.color = color
+    if material is not None:
+        content.material = material
+    if fit is not None:
+        content.fit = fit
+    if style_tags is not None:
+        content.style_tags = style_tags
+    if price is not None:
+        content.price = float(price)
+    
+    # 확인 완료 처리
+    content.confirmed = confirmed
+    
+    db.commit()
+    db.refresh(content)
+    
+    return {
+        "success": True,
+        "content_id": content.content_id,
+        "message": "Content updated successfully"
+    }

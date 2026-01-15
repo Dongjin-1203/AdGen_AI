@@ -6,6 +6,7 @@ import asyncio
 import os
 from pathlib import Path
 from .product_analyzer import ProductAnalyzer
+from config import settings
 
 # 테스트 이미지 디렉토리
 TEST_IMAGE_DIR = Path(__file__).parent.parent.parent.parent / "test_images"
@@ -63,7 +64,7 @@ async def test_all_images():
     print(f"📊 테스트 이미지 수: {len(TEST_IMAGES)}")
     
     # API 키 확인
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = settings.GOOGLE_API_KEY
     if not api_key:
         print("\n❌ GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다!")
         print("   .env 파일에 API 키를 추가하세요.")
@@ -136,7 +137,7 @@ async def test_specific_image(image_name: str):
     print(f"\n🔍 단일 이미지 테스트: {image_name}")
     
     # API 키 확인
-    api_key = os.getenv("GOOGLE_API_KEY")
+    api_key = settings.GOOGLE_API_KEY
     if not api_key:
         print("\n❌ GOOGLE_API_KEY 환경 변수가 설정되지 않았습니다!")
         return
@@ -159,7 +160,7 @@ if __name__ == "__main__":
     if env == "production":
         env_file = ".env.production"
     else:
-        env_file = ".env.local"
+        env_file = ".env"
     
     print(f"📄 환경 변수 로드: {env_file}")
     load_dotenv(env_file)

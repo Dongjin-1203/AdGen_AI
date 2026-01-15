@@ -2,7 +2,7 @@ import sqlite3
 import os
 
 # DB 경로
-DB_PATH = "adgen.db"  # 또는 .env.local에서 읽기
+DB_PATH = "adgen.db"  # 또는 .env에서 읽기
 
 # 연결
 conn = sqlite3.connect(DB_PATH)

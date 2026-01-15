@@ -18,7 +18,7 @@ backend/ENV/
 
 # Environment Variables
 backend/.env
-backend/.env.local
+backend/.env
 backend/.env.*.local
 backend/.env.production
 
@@ -55,7 +55,7 @@ frontend/dist/
 
 # Environment Variables
 frontend/.env
-frontend/.env.local
+frontend/.env
 frontend/.env.development.local
 frontend/.env.test.local
 frontend/.env.production.local

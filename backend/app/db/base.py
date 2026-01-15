@@ -35,7 +35,7 @@ elif DATABASE_URL and DATABASE_URL.startswith("postgresql"):
         echo=False
     )
 
-elif os.getenv("CLOUD_SQL_CONNECTION_NAME"):  # ⭐ 추가 조건
+elif os.getenv("CLOUD_SQL_CONNECTION_NAME"):  # 추가 조건
     # ===== Cloud SQL Connector 사용 =====
     logger.info("☁️ Using Cloud SQL Connector")
     

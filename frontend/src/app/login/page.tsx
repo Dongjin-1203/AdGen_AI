@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authAPI } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -11,7 +12,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
-  const setUser = useAuthStore((state) => state.setUser);
+
+  const { setAuth } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,24 +21,48 @@ export default function Login() {
     setError('');
 
     try {
-      const formData = new FormData();
+      const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
 
-      const response = await authAPI.login(formData);
+      const loginResponse = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
+
+      if (!loginResponse.ok) {
+        const errorData = await loginResponse.json();
+        throw new Error(errorData.detail || '로그인 실패');
+      }
       
-      // 토큰을 localStorage에 별도 저장 (중요!)
-      localStorage.setItem('token', response.data.access_token);
-      
-      // 사용자 정보 가져오기
-      const userResponse = await authAPI.getMe();
-      
-      // Zustand store에 저장
-      setUser(userResponse.data);
-      
+      const loginData = await loginResponse.json();
+      const token = loginData.access_token;
+
+      // 2. 사용자 정보 가져오기
+      const userResponse = await fetch(`${API_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('사용자 정보를 가져올 수 없습니다');
+      }
+
+      const userData = await userResponse.json();
+
+      // 3. Store에 token과 user 함께 저장
+      setAuth(token, userData);
+
+      // 4. 대시보드로 이동
       router.push('/dashboard');
+      
     } catch (err: any) {
-      setError(err.response?.data?.detail || '로그인에 실패했습니다.');
+      console.error('Login error:', err);
+      setError(err.message || '로그인에 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -55,8 +81,11 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">이메일</label>
+            <label htmlFor="email" className="block text-sm font-medium mb-2">
+              이메일
+            </label>
             <input
+              id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -67,8 +96,11 @@ export default function Login() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">비밀번호</label>
+            <label htmlFor="password" className="block text-sm font-medium mb-2">
+              비밀번호
+            </label>
             <input
+              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -80,13 +112,13 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition"
           >
             {loading ? '로그인 중...' : '로그인'}
           </button>
         </form>
 
-        <p className="text-center mt-4 text-sm">
+        <p className="text-center mt-4 text-sm text-gray-600">
           아직 계정이 없으신가요?{' '}
           <a href="/signup" className="text-blue-600 hover:underline">
             회원가입

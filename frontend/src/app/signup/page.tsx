@@ -2,8 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authAPI } from '@/lib/api';
 import { useAuthStore } from '@/lib/store';
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function Signup() {
   const [email, setEmail] = useState('');
@@ -13,7 +14,8 @@ export default function Signup() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
-  const setUser = useAuthStore((state) => state.setUser);
+
+  const { setAuth } = useAuthStore();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,35 +23,70 @@ export default function Signup() {
     setError('');
 
     try {
-      const userData = {
-        email,
-        password,
-        name,
-        phone,
-      };
+      // 1. 회원가입 요청
+      const signupResponse = await fetch(`${API_URL}/api/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          name,
+          phone: phone || undefined,  // 빈 문자열이면 undefined
+        }),
+      });
 
-      // 회원가입
-      await authAPI.signup(userData);
+      if (!signupResponse.ok) {
+        const errorData = await signupResponse.json();
+        throw new Error(errorData.detail || '회원가입 실패');
+      }
 
-      // 자동 로그인
-      const formData = new FormData();
+      // 2. 자동 로그인 (URLSearchParams 사용)
+      const formData = new URLSearchParams();
       formData.append('username', email);
       formData.append('password', password);
 
-      const loginResponse = await authAPI.login(formData);
-      
-      // 토큰을 localStorage에 별도 저장 (중요!)
-      localStorage.setItem('token', loginResponse.data.access_token);
-      
-      // 사용자 정보 가져오기
-      const userResponse = await authAPI.getMe();
-      
-      // Zustand store에 저장
-      setUser(userResponse.data);
+      const loginResponse = await fetch(`${API_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: formData.toString(),
+      });
 
+      if (!loginResponse.ok) {
+        // 로그인 실패 시 로그인 페이지로
+        alert('회원가입은 성공했습니다! 로그인 페이지로 이동합니다.');
+        router.push('/login');
+        return;
+      }
+
+      const loginData = await loginResponse.json();
+      const token = loginData.access_token;
+
+      // 3. 사용자 정보 가져오기
+      const userResponse = await fetch(`${API_URL}/api/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (!userResponse.ok) {
+        throw new Error('사용자 정보를 가져올 수 없습니다');
+      }
+
+      const userData = await userResponse.json();
+
+      // 4. Store에 token과 user 함께 저장
+      setAuth(token, userData);
+
+      // 5. 대시보드로 이동
       router.push('/dashboard');
+      
     } catch (err: any) {
-      setError(err.response?.data?.detail || '회원가입에 실패했습니다.');
+      console.error('Signup error:', err);
+      setError(err.message || '회원가입에 실패했습니다.');
     } finally {
       setLoading(false);
     }
@@ -68,31 +105,11 @@ export default function Signup() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">이메일</label>
+            <label htmlFor="name" className="block text-sm font-medium mb-2">
+              이름
+            </label>
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="abc@abc.com"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">비밀번호</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">이름</label>
-            <input
+              id="name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -103,8 +120,42 @@ export default function Signup() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">전화번호 (선택)</label>
+            <label htmlFor="email" className="block text-sm font-medium mb-2">
+              이메일
+            </label>
             <input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="abc@abc.com"
+              required
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium mb-2">
+              비밀번호
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              minLength={6}
+              required
+            />
+            <p className="text-xs text-gray-500 mt-1">최소 6자 이상</p>
+          </div>
+
+          <div>
+            <label htmlFor="phone" className="block text-sm font-medium mb-2">
+              전화번호 (선택)
+            </label>
+            <input
+              id="phone"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
@@ -116,13 +167,13 @@ export default function Signup() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition"
           >
             {loading ? '회원가입 중...' : '회원가입'}
           </button>
         </form>
 
-        <p className="text-center mt-4 text-sm">
+        <p className="text-center mt-4 text-sm text-gray-600">
           이미 계정이 있으신가요?{' '}
           <a href="/login" className="text-blue-600 hover:underline">
             로그인
