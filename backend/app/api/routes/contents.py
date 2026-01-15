@@ -15,12 +15,15 @@ from PIL import Image
 import io
 from google.cloud import storage
 from google.oauth2 import service_account
+import json
+import tempfile
 
 from app.db.base import get_db
 from app.models.schemas import UserContent, User
 from app.schemas.content import ContentResponse
 from app.api.routes.auth import get_current_user
 from config import settings
+from app.services.ai.product_analyzer import ProductAnalyzer
 
 router = APIRouter(prefix="/api/contents", tags=["Contents"])
 
@@ -66,14 +69,11 @@ async def upload_content(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """이미지 업로드 및 콘텐츠 생성 (GCS 저장)"""
+    """이미지 업로드 및 콘텐츠 생성 (GCS 저장 + Vision AI)"""
     
-    # GCS 버킷 가져오기 (실제 사용 시점에 초기화)
     bucket = get_gcs_bucket()
     
     # ===== 1. 파일 검증 =====
-    
-    # 1-1. 파일 확장자 확인
     file_ext = Path(file.filename).suffix.lower()
     if file_ext not in ALLOWED_EXTENSIONS:
         raise HTTPException(
@@ -81,18 +81,15 @@ async def upload_content(
             detail=f"Only image files are allowed: {', '.join(ALLOWED_EXTENSIONS)}"
         )
     
-    # 1-2. 파일 읽기
     contents = await file.read()
     file_size = len(contents)
     
-    # 1-3. 파일 크기 확인
     if file_size > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"File too large. Max size: {MAX_FILE_SIZE / 1024 / 1024}MB"
         )
     
-    # 1-4. 실제 이미지인지 확인 (Pillow로 열어보기)
     try:
         image = Image.open(io.BytesIO(contents))
         width, height = image.size
@@ -103,23 +100,16 @@ async def upload_content(
         )
     
     # ===== 2. GCS에 업로드 =====
-    
-    # 2-1. 고유한 파일명 생성 (UUID + 원본 확장자)
     unique_filename = f"{uuid.uuid4()}{file_ext}"
     thumbnail_filename = f"thumb_{unique_filename}"
     
-    # 2-2. GCS 경로 (user_id/filename)
     gcs_path = f"{current_user.user_id}/{unique_filename}"
     gcs_thumb_path = f"{current_user.user_id}/{thumbnail_filename}"
     
-    # 2-3. 원본 이미지 GCS 업로드
+    # 원본 업로드
     try:
         blob = bucket.blob(gcs_path)
-        blob.upload_from_string(
-            contents,
-            content_type=f"image/{file_ext[1:]}"
-        )
-        
+        blob.upload_from_string(contents, content_type=f"image/{file_ext[1:]}")
         print(f"✅ Uploaded: {gcs_path}")
     except Exception as e:
         print(f"❌ GCS Upload Error: {e}")
@@ -128,52 +118,104 @@ async def upload_content(
             detail="Failed to upload image to storage"
         )
     
-    # 2-4. 썸네일 생성 및 GCS 업로드
+    # 썸네일 업로드
     try:
-        # 썸네일 생성 (300x300, 비율 유지)
         thumb_image = image.copy()
         thumb_image.thumbnail((300, 300))
-        
-        # BytesIO로 변환
         thumb_buffer = io.BytesIO()
         thumb_image.save(thumb_buffer, format=image.format or 'JPEG')
         thumb_buffer.seek(0)
         
-        # GCS 업로드
         thumb_blob = bucket.blob(gcs_thumb_path)
         thumb_blob.upload_from_string(
             thumb_buffer.read(),
             content_type=f"image/{file_ext[1:]}"
         )
-        
         print(f"✅ Uploaded thumbnail: {gcs_thumb_path}")
     except Exception as e:
         print(f"❌ Thumbnail Upload Error: {e}")
-        # 썸네일 실패해도 원본은 저장되었으므로 계속 진행
     
-    # ===== 3. DB 저장 =====
+    # ===== 3. Vision AI 분석 =====
+    vision_data = {}
+
+    try:
+        # 임시 파일로 저장
+        with tempfile.NamedTemporaryFile(delete=False, suffix=file_ext) as tmp_file:
+            tmp_file.write(contents)
+            tmp_path = tmp_file.name
+        
+        print(f"\n{'='*60}")
+        print(f"🔍 Vision AI 분석 시작")
+        print(f"{'='*60}")
+        print(f"임시 파일: {tmp_path}")
+
+        # Vision AI 분석
+        analyzer = ProductAnalyzer(provider="gemini")
+        vision_result = await analyzer.analyze(tmp_path)
+        
+        # 임시 파일 삭제
+        os.unlink(tmp_path)
+        
+        print(f"📊 Vision AI 결과: {vision_result}")
+        
+        if vision_result.get('success'):
+            vision_data = {
+                'category': vision_result.get('category'),
+                'sub_category': vision_result.get('sub_category'),
+                'color': vision_result.get('color'),
+                'material': vision_result.get('material'),
+                'fit': vision_result.get('fit'),
+                'style_tags': json.dumps(vision_result.get('style_tags', []), ensure_ascii=False),
+                'ai_confidence': vision_result.get('confidence')
+            }
+            print(f"✅ Vision AI 분석 완료: {vision_data['category']}, {vision_data['color']}")
+        else:
+            print(f"⚠️ Vision AI 분석 실패: {vision_result.get('error')}")
+
+    except Exception as e:
+        print(f"⚠️ Vision AI 오류 (계속 진행): {e}")
+        import traceback
+        traceback.print_exc()
     
-    # 3-1. GCS 공개 URL
+    # 확인용 로그 출력
+    print(f"\n🔍 DB 저장 직전 vision_data:")
+    print(f"vision_data = {vision_data}")
+    print(f"type = {type(vision_data)}")
+    print(f"len = {len(vision_data)}")
+    print(f"keys = {vision_data.keys() if vision_data else 'None'}")
+
+    # ===== 4. DB 저장 =====
     bucket_name = settings.GCS_BUCKET_NAME or "adgen-uploads-2026"
     image_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
     thumbnail_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_thumb_path}"
     
-    # 3-2. UserContent 객체 생성
+    # UserContent 객체 생성
     new_content = UserContent(
         content_id=str(uuid.uuid4()),
         user_id=current_user.user_id,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
+        
+        # 기본 정보 (수동 입력 우선)
         product_name=product_name,
-        category=category,
-        color=color,
+        category=category or vision_data.get('category'),  # Vision AI 결과 활용
+        color=color or vision_data.get('color'),
         price=price,
+        
+        # Vision AI 결과
+        sub_category=vision_data.get('sub_category'),
+        material=vision_data.get('material'),
+        fit=vision_data.get('fit'),
+        style_tags=vision_data.get('style_tags'),
+        ai_confidence=vision_data.get('ai_confidence'),
+        confirmed=False,  # 사용자 확인 필요
+        
+        # 메타데이터
         file_size=file_size,
         width=width,
         height=height
     )
     
-    # 3-3. DB에 저장
     db.add(new_content)
     db.commit()
     db.refresh(new_content)
@@ -223,3 +265,60 @@ async def get_content(
         )
     
     return content
+
+@router.patch("/{content_id}")
+async def update_content(
+    content_id: str,
+    product_name: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
+    sub_category: Optional[str] = Form(None),
+    color: Optional[str] = Form(None),
+    material: Optional[str] = Form(None),
+    fit: Optional[str] = Form(None),
+    style_tags: Optional[str] = Form(None),
+    price: Optional[str] = Form(None),
+    confirmed: bool = Form(False),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    콘텐츠 정보 수정 (Vision AI 결과 확인/수정 후)
+    """
+    # 본인 콘텐츠 확인
+    content = db.query(UserContent).filter(
+        UserContent.content_id == content_id,
+        UserContent.user_id == current_user.user_id
+    ).first()
+    
+    if not content:
+        raise HTTPException(status_code=404, detail="Content not found")
+    
+    # 수정
+    if product_name is not None:
+        content.product_name = product_name
+    if category is not None:
+        content.category = category
+    if sub_category is not None:
+        content.sub_category = sub_category
+    if color is not None:
+        content.color = color
+    if material is not None:
+        content.material = material
+    if fit is not None:
+        content.fit = fit
+    if style_tags is not None:
+        content.style_tags = style_tags
+    if price is not None:
+        content.price = float(price)
+    
+    # 확인 완료 처리
+    content.confirmed = confirmed
+    
+    db.commit()
+    db.refresh(content)
+    
+    return {
+        "success": True,
+        "content_id": content.content_id,
+        "message": "Content updated successfully"
+    }

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { contentAPI, API_URL } from '@/lib/api';
 import { Content } from '@/types';
-import Navbar from '@/components/Navbar';
 
 export default function Gallery() {
   const [contents, setContents] = useState<Content[]>([]);
@@ -34,7 +33,6 @@ export default function Gallery() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
         <div className="flex items-center justify-center h-screen">
           <p className="text-xl">로딩 중...</p>
         </div>
@@ -45,7 +43,6 @@ export default function Gallery() {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
         <div className="flex items-center justify-center h-screen">
           <p className="text-xl text-red-600">{error}</p>
         </div>
@@ -55,7 +52,6 @@ export default function Gallery() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
       <div className="max-w-7xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold mb-8">갤러리</h1>
         

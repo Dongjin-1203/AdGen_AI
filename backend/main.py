@@ -13,6 +13,7 @@ import logging
 from config import settings
 from app.api.routes import auth, contents, ai_generate
 from app.api.routes import processing as image
+from app.api.routes import history
 
 # ===== 로깅 설정 =====
 logging.basicConfig(
@@ -99,6 +100,7 @@ app.include_router(auth.router)
 app.include_router(contents.router)
 app.include_router(image.router, prefix="/api/v1", tags=["Image Processing"])
 app.include_router(ai_generate.router, prefix="/api/v1", tags=["ai"])
+app.include_router(history.router)
 
 logger.info("✅ 라우터 등록 완료: auth, contents, image")
 
@@ -161,4 +163,4 @@ async def options_handler(path: str):
     return {"message": "OK"}
 
 logger.info("✅ FastAPI 앱 초기화 완료")
-logger.info(f"📍 문서: http://localhost:{os.getenv('PORT', '8080')}/docs")
+logger.info(f"📍 문서: http://localhost:{os.getenv('PORT', '8000')}/docs")

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { contentAPI, API_URL } from '@/lib/api';
 import { Content } from '@/types';
-import Navbar from '@/components/Navbar';
 
 export default function ContentDetail() {
   const params = useParams();
@@ -35,7 +34,6 @@ export default function ContentDetail() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
         <div className="flex items-center justify-center h-screen">
           <p className="text-xl">로딩 중...</p>
         </div>
@@ -46,7 +44,6 @@ export default function ContentDetail() {
   if (error || !content) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <Navbar />
         <div className="flex items-center justify-center h-screen">
           <p className="text-xl text-red-600">{error || '콘텐츠를 찾을 수 없습니다.'}</p>
         </div>
@@ -56,7 +53,6 @@ export default function ContentDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
       <div className="max-w-4xl mx-auto px-4 py-8">
         <button
           onClick={() => router.push('/gallery')}
