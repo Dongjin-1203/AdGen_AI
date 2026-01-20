@@ -1,18 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuthStore } from '@/lib/store';
 
 export default function Navbar() {
   const router = useRouter();
-  const user = useAuthStore((state) => state.user);
-  const logout = useAuthStore((state) => state.logout);
+  const { user, logout } = useAuthStore();
 
   const handleLogout = () => {
-    if (typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-    }
-    logout();
+    logout();  // ⭐ localStorage.removeItem 제거 (Zustand가 자동 처리)
     router.push('/login');
   };
 
@@ -20,40 +17,43 @@ export default function Navbar() {
     <nav className="bg-white shadow-md">
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex justify-between items-center">
-          <h1 
-            className="text-2xl font-bold text-blue-600 cursor-pointer"
-            onClick={() => router.push('/dashboard')}
-          >
-            AdGen_AI
-          </h1>
+          <Link href="/dashboard" className="text-2xl font-bold text-blue-600 hover:text-blue-700 transition">
+            AdGen AI
+          </Link>
           
-          <div className="flex items-center space-x-4">
-            <button
-              onClick={() => router.push('/dashboard')}
-              className="text-gray-700 hover:text-blue-600"
+          <div className="flex items-center gap-6">
+            <Link
+              href="/dashboard"
+              className="text-gray-700 hover:text-blue-600 font-medium transition"
             >
               대시보드
-            </button>
-            <button
-              onClick={() => router.push('/upload')}
-              className="text-gray-700 hover:text-blue-600"
+            </Link>
+            <Link
+              href="/upload"
+              className="text-gray-700 hover:text-blue-600 font-medium transition"
             >
               업로드
-            </button>
-            <button
-              onClick={() => router.push('/gallery')}
-              className="text-gray-700 hover:text-blue-600"
+            </Link>
+            <Link
+              href="/gallery"
+              className="text-gray-700 hover:text-blue-600 font-medium transition"
             >
               갤러리
-            </button>
-            {/* 테스트 버튼 제거 */}
+            </Link>
+            <Link
+              href="/history"
+              className="text-gray-700 hover:text-blue-600 font-medium transition"
+            >
+              히스토리
+            </Link>
             
             {user && (
-              <div className="flex items-center space-x-4">
+              <div className="flex items-center gap-4 pl-4 border-l border-gray-300">
                 <span className="text-gray-600">{user.name}님</span>
                 <button
+                  type="button"
                   onClick={handleLogout}
-                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                  className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
                 >
                   로그아웃
                 </button>

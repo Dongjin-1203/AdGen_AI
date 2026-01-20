@@ -23,10 +23,18 @@ class Settings(BaseSettings):
     
     # ===== GCS =====
     GCS_BUCKET_NAME: Optional[str] = None
-    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None  # ✅ 추가
+    GOOGLE_APPLICATION_CREDENTIALS: Optional[str] = None  
     
     # ===== Replicate API =====
-    REPLICATE_API_TOKEN: Optional[str] = None  # ✅ 새로 추가
+    REPLICATE_API_TOKEN: Optional[str] = None  
+
+    # ===== Google Gemini API ===== 
+    GOOGLE_API_KEY: Optional[str] = None
+    
+    # ===== GPU Server (Background Generation) =====
+    GPU_SERVER_URL: str = "http://34.59.198.57:8001"
+    GPU_SERVER_TIMEOUT: int = 120  # 초 단위
+    USE_GPU_SERVER: bool = True  # ← 추가: GPU 서버 사용 여부
     
     # ===== CORS =====
     allow_origins: List[str] = [
@@ -39,14 +47,13 @@ class Settings(BaseSettings):
         """Cloud SQL 또는 로컬 DB URL 반환"""
         # Cloud Run 환경
         if self.ENVIRONMENT == "production" and self.CLOUD_SQL_CONNECTION_NAME:
-            # Cloud SQL Connector는 별도 처리 (base.py에서)
             return f"postgresql+pg8000://{self.DB_USER}:{self.DB_PASSWORD}@/{self.DB_NAME}?unix_sock=/cloudsql/{self.CLOUD_SQL_CONNECTION_NAME}/.s.PGSQL.5432"
         # 로컬 환경
         else:
             return self.DATABASE_URL or "postgresql://postgres:password@localhost:5432/adgen_ai"
     
     class Config:
-        env_file = ".env.local"
+        env_file = ".env"
         case_sensitive = True
         env_file_encoding = 'utf-8'
 

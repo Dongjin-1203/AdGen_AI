@@ -1,100 +1,65 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
 import { useAuthStore } from '@/lib/store';
-import { contentAPI, API_URL } from '@/lib/api';
-import { Content } from '@/types';
-import Navbar from '@/components/Navbar';
-import { Sparkles, Upload, Download, RefreshCw, Image as ImageIcon } from 'lucide-react';
 
-type Style = 'vintage' | 'modern' | 'minimal' | 'natural' | 'luxury';
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
-interface StyleOption {
-  id: Style;
-  name: string;
-  description: string;
-  emoji: string;
-  color: string;
+type ImageSource = 'gallery' | 'upload';
+
+interface Content {
+  content_id: string;
+  product_name?: string;
+  category?: string;
+  image_url: string;
+  thumbnail_url?: string;
 }
-
-const STYLE_OPTIONS: StyleOption[] = [
-  {
-    id: 'vintage',
-    name: '빈티지',
-    description: '따뜻한 레트로 감성',
-    emoji: '🎞️',
-    color: 'bg-amber-100 hover:bg-amber-200 border-amber-300'
-  },
-  {
-    id: 'modern',
-    name: '모던',
-    description: '세련된 현대적 스타일',
-    emoji: '🏙️',
-    color: 'bg-blue-100 hover:bg-blue-200 border-blue-300'
-  },
-  {
-    id: 'minimal',
-    name: '미니멀',
-    description: '깔끔한 화이트 배경',
-    emoji: '⬜',
-    color: 'bg-gray-100 hover:bg-gray-200 border-gray-300'
-  },
-  {
-    id: 'natural',
-    name: '내추럴',
-    description: '자연스러운 아웃도어',
-    emoji: '🌿',
-    color: 'bg-green-100 hover:bg-green-200 border-green-300'
-  },
-  {
-    id: 'luxury',
-    name: '럭셔리',
-    description: '고급스러운 프리미엄',
-    emoji: '💎',
-    color: 'bg-purple-100 hover:bg-purple-200 border-purple-300'
-  }
-];
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user } = useAuthStore();
+  const { token, user } = useAuthStore();
 
-  // 콘텐츠 관련 상태
+  const [imageSource, setImageSource] = useState<ImageSource>('gallery');
+  const [userPrompt, setUserPrompt] = useState('');
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [contents, setContents] = useState<Content[]>([]);
   const [selectedContent, setSelectedContent] = useState<Content | null>(null);
-  const [fetchingContents, setFetchingContents] = useState(true);
-
-  // AI 생성 관련 상태
-  const [selectedStyle, setSelectedStyle] = useState<Style | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [resultUrl, setResultUrl] = useState<string | null>(null);
-  const [processingTime, setProcessingTime] = useState<number | null>(null);
-
-  // 업로드 관련 상태
-  const [uploadFile, setUploadFile] = useState<File | null>(null);
-  const [uploadPreview, setUploadPreview] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [showUploadSection, setShowUploadSection] = useState(false);
+  const [selectedStyle, setSelectedStyle] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [generatedResult, setGeneratedResult] = useState<string>('');
 
   useEffect(() => {
-    if (!user) {
+    if (!token) {
       router.push('/login');
-      return;
     }
+  }, [token, router]);
 
-    fetchContents();
-  }, [user, router]);
+  useEffect(() => {
+    if (token) {
+      fetchContents();
+    }
+  }, [token]);
 
   const fetchContents = async () => {
     try {
-      const response = await contentAPI.getAll();
-      setContents(response.data);
-    } catch (err: any) {
-      console.error('콘텐츠 로딩 실패:', err);
-    } finally {
-      setFetchingContents(false);
+      const response = await fetch(`${API_URL}/api/contents`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setContents(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch contents:', error);
     }
   };
 
@@ -102,418 +67,402 @@ export default function DashboardPage() {
     const file = e.target.files?.[0];
     if (file) {
       setUploadFile(file);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setUploadPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setPreviewUrl(URL.createObjectURL(file));
     }
   };
 
-  const handleUpload = async () => {
+  const handleUploadAndUse = async () => {
     if (!uploadFile) return;
 
-    setUploading(true);
-    setError(null);
+    setIsLoading(true);
 
     try {
       const formData = new FormData();
       formData.append('file', uploadFile);
 
-      await contentAPI.upload(formData);
-      
-      // 업로드 성공 후 목록 새로고침
-      await fetchContents();
-      
-      // 업로드 폼 초기화
-      setUploadFile(null);
-      setUploadPreview(null);
-      setShowUploadSection(false);
-      
-      alert('이미지가 업로드되었습니다!');
-    } catch (err: any) {
-      setError(err.response?.data?.detail || '업로드에 실패했습니다.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleGenerate = async () => {
-    if (!selectedContent || !selectedStyle) {
-      setError('이미지와 스타일을 선택해주세요.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setResultUrl(null);
-    setProcessingTime(null);
-
-    try {
-      const formData = new FormData();
-      formData.append('content_id', selectedContent.content_id);
-      formData.append('style', selectedStyle);
-
-      const response = await fetch(`${API_URL}/api/v1/generate-ad`, {
+      const response = await fetch(`${API_URL}/api/contents/upload`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('AI 생성에 실패했습니다.');
+      if (response.ok) {
+        const newContent = await response.json();
+        setSelectedContent(newContent);
+        await fetchContents();
+        setImageSource('gallery');
+        setStep(2);
+        alert('✅ 업로드 완료! Vision AI 분석이 완료되었습니다.');
+      } else {
+        throw new Error('Upload failed');
       }
-
-      const data = await response.json();
-      setResultUrl(data.result_url);
-      setProcessingTime(data.processing_time);
-    } catch (err: any) {
-      setError(err.message || 'AI 생성 중 오류가 발생했습니다.');
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('❌ 업로드 실패');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
-  const handleDownload = () => {
-    if (!resultUrl) return;
-    
-    const link = document.createElement('a');
-    link.href = resultUrl;
-    link.download = `adgen_${selectedStyle}_${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleSelectContent = (content: Content) => {
+    setSelectedContent(content);
+    setStep(2);
   };
 
-  const handleReset = () => {
-    setResultUrl(null);
-    setProcessingTime(null);
-    setError(null);
+  const handleSelectStyle = (style: string) => {
+    setSelectedStyle(style);
+    setStep(3);
   };
 
-  if (!user) {
-    return null;
-  }
+  const handleGenerate = async () => {
+    if (!selectedContent || !selectedStyle) return;
 
-  if (fetchingContents) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent mb-4"></div>
-            <p className="text-xl">로딩 중...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+    setIsLoading(true);
+
+    try {
+      // ✅ JSON 형식으로 요청 데이터 준비
+      const requestBody = {
+        prompt: userPrompt || `${selectedStyle} style background`, // 프롬프트가 없으면 기본값
+        style: selectedStyle,
+        aspect_ratio: 'square', // 또는 'portrait', 'landscape'
+        num_inference_steps: 30,
+      };
+
+      console.log('🎨 AI 생성 시작:', requestBody);
+      console.log('🔗 엔드포인트:', `${API_URL}/api/contents/${selectedContent.content_id}/generate-background`);
+
+      // ✅ 올바른 엔드포인트 호출
+      const response = await fetch(
+        `${API_URL}/api/contents/${selectedContent.content_id}/generate-background`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json', // ✅ JSON 헤더 추가
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(requestBody), // ✅ JSON으로 변환
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ 생성 완료:', data);
+        console.log('✅ 사용된 모드:', data.mode); // local or replicate
+        
+        setGeneratedResult(data.result_url);
+        alert(`✅ 생성 완료! (${data.processing_time.toFixed(2)}초)\n모드: ${data.mode}`);
+      } else {
+        const errorData = await response.json();
+        console.error('❌ 에러 응답:', errorData);
+        throw new Error(errorData.detail || 'Generation failed');
+      }
+    } catch (error) {
+      console.error('❌ Generate error:', error);
+      alert('❌ 생성 실패: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        {/* 헤더 */}
-        <div className="mb-6">
-          <div className="bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg shadow-md p-6 text-white">
-            <h1 className="text-3xl font-bold mb-2">
-              {user.name}님, 환영합니다! 👋
-            </h1>
-            <p className="text-blue-100">
-              AI로 프로페셔널한 광고 이미지를 만들어보세요
-            </p>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="container mx-auto px-4 max-w-6xl">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+            AI 광고 생성
+          </h1>
+          <p className="text-gray-600">
+            이미지를 선택하고 스타일을 적용하여 AI 광고를 생성하세요
+          </p>
+        </div>
+
+        <div className="flex items-center justify-center mb-8">
+          <div className={`flex items-center ${step >= 1 ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className="w-10 h-10 rounded-full bg-current text-white flex items-center justify-center font-bold">
+              1
+            </div>
+            <span className="ml-2 font-medium">이미지</span>
+          </div>
+          <div className={`w-20 h-1 mx-4 ${step >= 2 ? 'bg-blue-600' : 'bg-gray-300'}`} />
+          <div className={`flex items-center ${step >= 2 ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className="w-10 h-10 rounded-full bg-current text-white flex items-center justify-center font-bold">
+              2
+            </div>
+            <span className="ml-2 font-medium">스타일</span>
+          </div>
+          <div className={`w-20 h-1 mx-4 ${step >= 3 ? 'bg-blue-600' : 'bg-gray-300'}`} />
+          <div className={`flex items-center ${step >= 3 ? 'text-blue-600' : 'text-gray-400'}`}>
+            <div className="w-10 h-10 rounded-full bg-current text-white flex items-center justify-center font-bold">
+              3
+            </div>
+            <span className="ml-2 font-medium">생성</span>
           </div>
         </div>
 
-        {/* 통계 (간단하게) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-gray-500 text-sm">내 이미지</p>
-            <p className="text-2xl font-bold text-blue-600">{contents.length}개</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-gray-500 text-sm">선택된 이미지</p>
-            <p className="text-2xl font-bold text-green-600">
-              {selectedContent ? '1개' : '0개'}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-gray-500 text-sm">선택된 스타일</p>
-            <p className="text-2xl font-bold text-purple-600">
-              {selectedStyle ? STYLE_OPTIONS.find(s => s.id === selectedStyle)?.name : '-'}
-            </p>
-          </div>
-        </div>
+        {step === 1 && (
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <h2 className="text-2xl font-bold mb-6">1️⃣ 이미지 선택</h2>
 
-        {error && (
-          <div className="mb-6 p-4 bg-red-100 text-red-700 rounded-lg flex items-center justify-between">
-            <span>{error}</span>
-            <button onClick={() => setError(null)} className="text-red-900 font-bold">✕</button>
-          </div>
-        )}
-
-        {/* 메인 AI 생성 인터페이스 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* 1. 이미지 선택/업로드 */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold flex items-center gap-2">
-                <ImageIcon className="w-5 h-5" />
-                1️⃣ 내 이미지
-              </h2>
+            <div className="flex gap-3 mb-6">
               <button
-                onClick={() => setShowUploadSection(!showUploadSection)}
-                className="text-sm px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 flex items-center gap-1"
+                type="button"
+                onClick={() => setImageSource('gallery')}
+                className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all ${
+                  imageSource === 'gallery'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                <Upload className="w-4 h-4" />
-                {showUploadSection ? '취소' : '업로드'}
+                📂 갤러리에서 선택
+              </button>
+              <button
+                type="button"
+                onClick={() => setImageSource('upload')}
+                className={`flex-1 py-3 px-6 rounded-lg font-medium transition-all ${
+                  imageSource === 'upload'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                ⬆️ 새로 업로드
               </button>
             </div>
 
-            {/* 업로드 섹션 */}
-            {showUploadSection && (
-              <div className="mb-4 p-4 bg-blue-50 rounded-lg border-2 border-dashed border-blue-300">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                  id="fileInput"
-                />
-                
-                {uploadPreview ? (
-                  <div className="space-y-3">
-                    <img
-                      src={uploadPreview}
-                      alt="Preview"
-                      className="w-full h-32 object-cover rounded"
-                    />
-                    <button
-                      onClick={handleUpload}
-                      disabled={uploading}
-                      className="w-full py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
-                    >
-                      {uploading ? '업로드 중...' : '업로드 완료'}
-                    </button>
+            {imageSource === 'gallery' && (
+              <>
+                {contents.length === 0 ? (
+                  <div className="text-center py-16 text-gray-500">
+                    <p className="text-lg mb-2">아직 업로드된 이미지가 없습니다</p>
+                    <p className="text-sm">새로 업로드 탭에서 이미지를 추가하세요</p>
                   </div>
                 ) : (
-                  <label
-                    htmlFor="fileInput"
-                    className="block text-center py-8 cursor-pointer"
-                  >
-                    <Upload className="w-12 h-12 mx-auto text-blue-400 mb-2" />
-                    <p className="text-sm text-gray-600">
-                      클릭하여 이미지 선택
-                    </p>
-                  </label>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {contents.map((content) => (
+                      <button
+                        key={content.content_id}
+                        type="button"
+                        onClick={() => handleSelectContent(content)}
+                        className={`text-left rounded-lg overflow-hidden border-2 transition-all hover:shadow-lg ${
+                          selectedContent?.content_id === content.content_id
+                            ? 'border-blue-600 shadow-lg'
+                            : 'border-gray-200 hover:border-gray-300'
+                        }`}
+                      >
+                        <div className="aspect-square relative">
+                          <Image
+                            src={content.thumbnail_url || content.image_url}
+                            alt={content.product_name || '상품'}
+                            fill
+                            className="object-cover"
+                          />
+                        </div>
+                        <div className="p-3 bg-white">
+                          <p className="text-sm font-medium text-gray-900 truncate">
+                            {content.product_name || '이름 없음'}
+                          </p>
+                          {content.category && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {content.category}
+                            </p>
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 )}
-              </div>
+              </>
             )}
 
-            {/* 이미지 목록 */}
-            {contents.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">
-                <ImageIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                <p>아직 업로드된 이미지가 없습니다</p>
-                <p className="text-sm mt-2">위의 '업로드' 버튼을 눌러주세요</p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {contents.map((content) => (
-                  <div
-                    key={content.content_id}
-                    onClick={() => setSelectedContent(content)}
-                    className={`
-                      p-3 border-2 rounded-lg cursor-pointer transition
-                      ${selectedContent?.content_id === content.content_id
-                        ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                      }
-                    `}
-                  >
-                    <div className="flex gap-3 items-center">
-                      <img
-                        src={
-                          content.thumbnail_url?.startsWith('http')
-                            ? content.thumbnail_url
-                            : `${API_URL}${content.thumbnail_url}`
-                        }
-                        alt={content.product_name}
-                        className="w-16 h-16 object-cover rounded"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="font-semibold truncate">
-                          {content.product_name}
-                        </p>
-                        <p className="text-sm text-gray-500 truncate">
-                          {content.category || '미분류'}
-                        </p>
-                      </div>
-                      {selectedContent?.content_id === content.content_id && (
-                        <span className="text-blue-500 font-bold">✓</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            {imageSource === 'upload' && (
+              <div className="text-center py-12">
+                <p className="text-lg mb-4">업로드 페이지로 이동합니다</p>
+                <Link
+                  href="/upload"
+                  className="inline-block px-6 py-3 bg-blue-600 text-white rounded-lg"
+                >
+                  업로드 페이지로 이동
+                </Link>
               </div>
             )}
           </div>
+        )}
 
-          {/* 2. 스타일 선택 */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              2️⃣ AI 스타일
-            </h2>
-            
-            <div className="space-y-3">
-              {STYLE_OPTIONS.map((style) => (
-                <div
-                  key={style.id}
-                  onClick={() => setSelectedStyle(style.id)}
-                  className={`
-                    p-4 border-2 rounded-lg cursor-pointer transition
-                    ${style.color}
-                    ${selectedStyle === style.id
-                      ? 'ring-2 ring-offset-2 ring-blue-500 border-blue-500'
-                      : 'border-transparent'
-                    }
-                  `}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="text-3xl">{style.emoji}</span>
-                    <div className="flex-1">
-                      <p className="font-semibold text-gray-800">
-                        {style.name}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {style.description}
-                      </p>
-                    </div>
-                    {selectedStyle === style.id && (
-                      <span className="text-blue-500 font-bold text-xl">✓</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {step === 2 && (
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <h2 className="text-2xl font-bold mb-6">2️⃣ AI 스타일 선택</h2>
 
-          {/* 3. 생성 결과 */}
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4">
-              3️⃣ 생성 결과
-            </h2>
-
-            {!resultUrl && !loading && (
-              <div className="text-center py-8">
-                <Sparkles className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500 mb-6">
-                  이미지와 스타일을 선택하고<br />
-                  생성 버튼을 눌러주세요
-                </p>
-                <button
-                  onClick={handleGenerate}
-                  disabled={!selectedContent || !selectedStyle}
-                  className="
-                    w-full px-6 py-4 bg-gradient-to-r from-blue-500 to-purple-600
-                    text-white font-bold rounded-lg text-lg
-                    hover:from-blue-600 hover:to-purple-700
-                    disabled:from-gray-300 disabled:to-gray-400
-                    disabled:cursor-not-allowed
-                    transition flex items-center justify-center gap-2
-                    shadow-lg hover:shadow-xl
-                  "
-                >
-                  <Sparkles className="w-6 h-6" />
-                  AI 광고 생성하기
-                </button>
-                
-                {(!selectedContent || !selectedStyle) && (
-                  <p className="text-xs text-gray-400 mt-3">
-                    {!selectedContent && '이미지를 선택하세요 '}
-                    {!selectedContent && !selectedStyle && '+ '}
-                    {!selectedStyle && '스타일을 선택하세요'}
-                  </p>
-                )}
-              </div>
-            )}
-
-            {loading && (
-              <div className="text-center py-8">
-                <div className="inline-block animate-spin rounded-full h-16 w-16 border-4 border-blue-500 border-t-transparent mb-4"></div>
-                <p className="text-gray-700 font-semibold mb-2">
-                  AI가 광고를 생성하고 있습니다...
-                </p>
-                <p className="text-sm text-gray-500">
-                  약 10-15초 소요됩니다
-                </p>
-              </div>
-            )}
-
-            {resultUrl && (
-              <div className="space-y-4">
-                <div className="relative aspect-square bg-gray-100 rounded-lg overflow-hidden border-2 border-green-500">
-                  <img
-                    src={resultUrl}
-                    alt="Generated ad"
-                    className="w-full h-full object-contain"
+            {selectedContent && (
+              <div className="mb-6 p-4 bg-gray-50 rounded-lg flex items-center gap-4">
+                <div className="relative w-16 h-16">
+                  <Image
+                    src={selectedContent.thumbnail_url || selectedContent.image_url}
+                    alt="선택된 이미지"
+                    fill
+                    className="object-cover rounded"
                   />
                 </div>
-
-                {processingTime && (
-                  <div className="text-center">
-                    <span className="inline-block px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">
-                      ✨ {processingTime.toFixed(1)}초 만에 완성!
-                    </span>
-                  </div>
-                )}
-
-                <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {selectedContent.product_name || '선택된 이미지'}
+                  </p>
                   <button
-                    onClick={handleDownload}
-                    className="
-                      px-4 py-3 bg-green-600 text-white rounded-lg
-                      hover:bg-green-700 transition font-semibold
-                      flex items-center justify-center gap-2
-                      shadow hover:shadow-lg
-                    "
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="text-sm text-blue-600 hover:underline"
                   >
-                    <Download className="w-5 h-5" />
-                    다운로드
-                  </button>
-                  <button
-                    onClick={handleReset}
-                    className="
-                      px-4 py-3 bg-gray-600 text-white rounded-lg
-                      hover:bg-gray-700 transition font-semibold
-                      flex items-center justify-center gap-2
-                      shadow hover:shadow-lg
-                    "
-                  >
-                    <RefreshCw className="w-5 h-5" />
-                    다시 생성
+                    이미지 변경
                   </button>
                 </div>
               </div>
             )}
-          </div>
-        </div>
 
-        {/* 하단 도움말 */}
-        {!resultUrl && (
-          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="text-sm font-semibold text-blue-800 mb-2">
-              💡 사용 팁:
-            </p>
-            <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
-              <li>단색 배경의 제품 사진이 가장 좋은 결과를 만듭니다</li>
-              <li>의류는 빈티지/모던, 테크 제품은 모던/미니멀 스타일 추천</li>
-              <li>생성된 이미지는 바로 다운로드하거나 다른 스타일로 재생성할 수 있습니다</li>
-            </ul>
+            <div className="grid grid-cols-5 gap-4 mb-6">
+              {[
+                { value: 'minimal', label: '미니멀', emoji: '⚪' },
+                { value: 'modern', label: '모던', emoji: '🏙️' },
+                { value: 'vintage', label: '빈티지', emoji: '📻' },
+                { value: 'natural', label: '내추럴', emoji: '🌿' },
+                { value: 'luxury', label: '럭셔리', emoji: '💎' },
+              ].map((style) => (
+                <button
+                  key={style.value}
+                  type="button"
+                  onClick={() => handleSelectStyle(style.value)}
+                  className={`p-6 rounded-xl border-2 transition-all ${
+                    selectedStyle === style.value
+                      ? 'border-blue-600 bg-blue-50 shadow-md'
+                      : 'border-gray-200 hover:border-gray-300 hover:shadow'
+                  }`}
+                >
+                  <div className="text-4xl mb-2">{style.emoji}</div>
+                  <div className="font-medium text-gray-900">{style.label}</div>
+                </button>
+              ))}
+            </div>
+
+            <div className="mt-6">
+              <label htmlFor="user-prompt" className="block text-sm font-medium text-gray-700 mb-2">
+                💬 추가 요청 (선택사항)
+              </label>
+              <textarea
+                id="user-prompt"
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                placeholder="예: 배경을 따뜻한 느낌으로, 텍스트를 크게 강조, 제품을 중앙에 배치"
+                rows={3}
+                className="w-full p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                💡 선택한 스타일에 추가로 원하는 요청을 자유롭게 입력하세요
+              </p>
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+              >
+                이전
+              </button>
+              <button
+                type="button"
+                onClick={() => setStep(3)}
+                disabled={!selectedStyle}
+                className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                다음
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="bg-white rounded-xl shadow-lg p-8">
+            <h2 className="text-2xl font-bold mb-6">3️⃣ AI 광고 생성</h2>
+
+            <div className="mb-8 p-6 bg-gray-50 rounded-lg space-y-3">
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-gray-700">이미지:</span>
+                <span className="text-gray-900">
+                  {selectedContent?.product_name || '선택됨'}
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-gray-700">스타일:</span>
+                <span className="text-gray-900 capitalize">{selectedStyle}</span>
+              </div>
+              {userPrompt && (
+                <div className="flex items-start gap-3">
+                  <span className="font-medium text-gray-700">요청:</span>
+                  <span className="text-gray-900">{userPrompt}</span>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={isLoading}
+              className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold text-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? '생성 중... ⏳' : '🎨 AI 광고 생성하기'}
+            </button>
+
+            {generatedResult && (
+              <div className="mt-8">
+                <h3 className="text-xl font-bold mb-4">생성 결과</h3>
+                <div className="relative w-full aspect-square max-w-2xl mx-auto">
+                  <Image
+                    src={generatedResult}
+                    alt="Generated"
+                    fill
+                    className="object-contain rounded-lg shadow-xl"
+                  />
+                </div>
+                <div className="flex gap-3 mt-6">
+                  
+                  <a
+                    href={generatedResult}
+                    download="generated-ad.jpg"
+                    className="flex-1 text-center py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
+                  >
+                    다운로드
+                  </a>
+                  <Link
+                    href="/history"
+                    className="flex-1 text-center py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition"
+                  >
+                    히스토리 보기
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStep(1);
+                      setSelectedContent(null);
+                      setSelectedStyle('');
+                      setUserPrompt('');
+                      setGeneratedResult('');
+                    }}
+                    className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+                  >
+                    새로 만들기
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!generatedResult && (
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                className="w-full py-3 mt-4 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
+              >
+                이전
+              </button>
+            )}
           </div>
         )}
       </div>

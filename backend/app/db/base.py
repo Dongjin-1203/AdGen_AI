@@ -15,7 +15,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 logger.info(f"🔧 DATABASE_URL: {DATABASE_URL[:50] if DATABASE_URL else 'Not set'}...")
 
-# SQLite vs PostgreSQL 판단
+# ===== 조건 분기 수정 =====
 if DATABASE_URL and DATABASE_URL.startswith("sqlite"):
     # ===== SQLite 설정 =====
     logger.info("📁 Using SQLite database")
@@ -34,9 +34,9 @@ elif DATABASE_URL and DATABASE_URL.startswith("postgresql"):
         DATABASE_URL,
         echo=False
     )
-    
-else:
-    # ===== Cloud SQL Connector 사용 (환경 변수 기반) =====
+
+elif os.getenv("CLOUD_SQL_CONNECTION_NAME"):  # 추가 조건
+    # ===== Cloud SQL Connector 사용 =====
     logger.info("☁️ Using Cloud SQL Connector")
     
     from google.cloud.sql.connector import Connector
@@ -58,6 +58,16 @@ else:
     engine = create_engine(
         "postgresql+pg8000://",
         creator=getconn,
+        echo=False
+    )
+
+else:
+    # ===== 기본값: SQLite =====
+    logger.warning("⚠️ DATABASE_URL not set, using default SQLite")
+    
+    engine = create_engine(
+        "sqlite:///./adgen.db",
+        connect_args={"check_same_thread": False},
         echo=False
     )
 

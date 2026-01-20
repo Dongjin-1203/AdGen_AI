@@ -1,0 +1,27 @@
+name: Deploy GPU Server
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gpu-server/**'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup gcloud
+        uses: google-github-actions/setup-gcloud@v1
+        with:
+          service_account_key: ${{ secrets.GCP_GPU_SA_KEY }}
+          
+      - name: Deploy to GPU Server
+        run: |
+          gcloud compute scp --recurse ./gpu-server/* \
+            adgen-gpu-server:~/adgen-ai/ \
+            --zone=us-central1-a
+          
+          gcloud compute ssh adgen-gpu-server --zone=us-central1-a \
+            --command="cd ~/adgen-ai && source venv/bin/activate && pip install -r requirements.txt && sudo systemctl restart adgen-gpu"

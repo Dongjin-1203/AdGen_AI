@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Text, Integer, DateTime, Numeric, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, Numeric, Text, Boolean, ForeignKey
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -52,22 +52,31 @@ class Product(Base):
     shop = relationship("Shop", backref="products")
 
 class UserContent(Base):
+    """사용자 업로드 콘텐츠 (갤러리)"""
     __tablename__ = 'user_contents'
     
-    content_id = Column(String(36), primary_key=True)  # image_id → content_id
+    content_id = Column(String(36), primary_key=True)
     user_id = Column(String(36), ForeignKey("users.user_id"))
     
     # 이미지
     image_url = Column(String(1000), nullable=False)
     thumbnail_url = Column(String(1000), nullable=True)
     
-    # 사용자 입력
+    # 기본 정보
     product_name = Column(String(300), nullable=True)
     category = Column(String(100), nullable=True)
     color = Column(String(50), nullable=True)
     price = Column(Numeric(10, 2), nullable=True)
     
-    # AI 생성 (나중에)
+    # Vision AI 필드
+    sub_category = Column(String(100), nullable=True)
+    material = Column(String(100), nullable=True)
+    fit = Column(String(50), nullable=True)
+    style_tags = Column(Text, nullable=True)
+    ai_confidence = Column(Numeric(3, 2), nullable=True)
+    confirmed = Column(Boolean, default=False)
+    
+    # AI 캡션 (추후)
     caption = Column(Text, nullable=True)
     
     # 메타데이터
@@ -79,4 +88,36 @@ class UserContent(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
     # 관계
-    owner = relationship("User", backref="contents")  # images → contents
+    owner = relationship("User", backref="contents")
+
+class GenerationHistory(Base):
+    """AI 광고 생성 기록 (히스토리)"""
+    __tablename__ = 'generation_history'
+    
+    history_id = Column(String(36), primary_key=True)
+    content_id = Column(
+        String(36), 
+        ForeignKey("user_contents.content_id", ondelete="CASCADE"), 
+        nullable=False
+    )
+    user_id = Column(
+        String(36), 
+        ForeignKey("users.user_id", ondelete="CASCADE"), 
+        nullable=False
+    )
+    
+    # 생성 정보
+    style = Column(String(50), nullable=False)
+    prompt = Column(Text, nullable=True)
+    result_url = Column(String(1000), nullable=False)
+    
+    # 메타데이터
+    processing_time = Column(Numeric(5, 2), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # 관계
+    content = relationship("UserContent", backref="generations")
+    user = relationship("User", backref="generation_history")
+    
+    def __repr__(self):
+        return f"<GenerationHistory(history_id={self.history_id}, style={self.style})>"
