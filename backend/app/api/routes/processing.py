@@ -10,13 +10,13 @@ import time
 import logging
 from typing import Optional
 
-from app.services.ai.background import BackgroundRemovalService
-from app.services.ai.img_processing import (
+from app.services.img_processing.background_removal import BackgroundRemovalService
+from shared.utils.image_utils import (
     resize_to_instagram_ratio,
     add_background_color,
     get_image_info
 )
-from app.services.ai.styles import StyleProcessor
+from app.services.img_processing.style_processor import StyleProcessor
 
 logger = logging.getLogger(__name__)
 

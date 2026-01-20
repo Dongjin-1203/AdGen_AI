@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
 from decimal import Decimal
@@ -41,3 +41,45 @@ class ContentResponse(BaseModel):
     
     class Config:
         from_attributes = True  # SQLAlchemy 객체 → Pydantic 자동 변환
+
+class GenerateBackgroundRequest(BaseModel):
+    """배경 생성 요청"""
+    prompt: str = Field(..., description="배경 생성 프롬프트 (필수)")
+    style: str = Field(default="minimal", description="스타일: minimal, emotional, street, instagram")
+    aspect_ratio: str = Field(default="square", description="비율: square, portrait, landscape")
+    num_inference_steps: int = Field(default=30, ge=10, le=50, description="생성 스텝 (10-50)")
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "prompt": "white minimal studio background with soft shadows",
+                "style": "minimal",
+                "aspect_ratio": "square",
+                "num_inference_steps": 30
+            }
+        }
+
+class GenerateBackgroundResponse(BaseModel):
+    """배경 생성 응답"""
+    success: bool
+    content_id: str
+    result_url: str
+    thumbnail_url: str
+    mode: str = Field(..., description="사용된 생성 모드: local or replicate")
+    prompt_used: str
+    style: str
+    processing_time: Optional[float] = None
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "success": True,
+                "content_id": "123e4567-e89b-12d3-a456-426614174000",
+                "result_url": "https://storage.googleapis.com/bucket/result.png",
+                "thumbnail_url": "https://storage.googleapis.com/bucket/thumb_result.png",
+                "mode": "replicate",
+                "prompt_used": "white minimal studio background",
+                "style": "minimal",
+                "processing_time": 12.5
+            }
+        }

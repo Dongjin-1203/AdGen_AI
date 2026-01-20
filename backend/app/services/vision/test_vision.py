@@ -5,7 +5,7 @@ backend/test_images/ 폴더의 이미지들을 분석하여 정확도 검증
 import asyncio
 import os
 from pathlib import Path
-from .product_analyzer import ProductAnalyzer
+from ..vision.product_analyzer import ProductAnalyzer
 from config import settings
 
 # 테스트 이미지 디렉토리

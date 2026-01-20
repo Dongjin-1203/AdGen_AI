@@ -1,15 +1,15 @@
-"""
-상품 이미지 분석 (Vision AI)
+﻿"""
+제품 이미지 분석 (Vision AI)
 """
 import json
 from typing import Dict
 from pathlib import Path
 from config import settings
-from .vision_providers import GeminiVisionProvider
+from .providers import GeminiVisionProvider
 
 
 class ProductAnalyzer:
-    """상품 이미지 분석"""
+    """제품 이미지 분석"""
     
     def __init__(self, provider: str = "gemini"):
         self.provider = provider
@@ -25,7 +25,7 @@ class ProductAnalyzer:
         else:
             raise ValueError(f"Unknown provider: {provider}")
         
-        print(f"✅ ProductAnalyzer 초기화: {provider}")
+        print(f"✅ ProductAnalyzer 초기화 완료: {provider}")
     
     async def analyze(self, image_path: str) -> Dict:
         """
@@ -50,17 +50,17 @@ class ProductAnalyzer:
         
         # 프롬프트
         prompt = """
-이 의류 이미지를 분석하여 다음 정보를 JSON 형식으로 반환해주세요:
+첨부된 이미지를 분석하여 다음 정보를 JSON 형식으로 반환해주세요:
 
 1. category: 대분류 (상의/하의/아우터/원피스/신발/가방/액세서리 중 하나)
-2. sub_category: 소분류 (셔츠, 티셔츠, 니트, 청바지, 슬랙스, 코트, 자켓 등 구체적으로)
+2. sub_category: 세부류 (티셔츠, 데님팬츠, 니트, 청바지, 슬랙스, 코트, 재킷 등 구체적으로)
 3. color: 주요 색상 (블랙, 화이트, 네이비, 베이지 등)
-4. material: 소재 추정 (면, 울, 폴리에스터, 가죽, 데님 등)
-5. fit: 핏/스타일 (슬림핏, 레귤러핏, 오버핏, 루즈핏 등)
+4. material: 소재 추정 (면, 폴리에스터, 가죽, 데님 등)
+5. fit: 핏/실루엣 (슬림, 레귤러핏, 오버핏, 루즈핏 등)
 6. style_tags: 스타일 태그 배열 (["캐주얼", "미니멀"] 형태)
 7. confidence: 분석 신뢰도 (0.0~1.0)
 
-**중요**: 반드시 유효한 JSON 형식으로만 답변하고, 다른 설명이나 마크다운은 포함하지 마세요.
+**중요**: 반드시 순수한 JSON 형식으로만 답변하고, 다른 설명이나 마크다운은 포함하지 마세요.
 
 예시:
 {
@@ -88,7 +88,7 @@ class ProductAnalyzer:
         content = response.get('content', '').strip()
         
         try:
-            print(f"📄 원본 응답 ({len(content)} 글자): {content[:100]}...")
+            print(f"📥 원본 응답 ({len(content)} 글자): {content[:100]}...")
             
             # Markdown 코드 블록 제거
             if content.startswith('```'):
@@ -103,7 +103,7 @@ class ProductAnalyzer:
                 end = content.rindex('}') + 1
                 content = content[start:end]
             
-            print(f"🧹 정제된 JSON ({len(content)} 글자): {content[:100]}...")
+            print(f"🔧 정제된 JSON ({len(content)} 글자): {content[:100]}...")
             
             # JSON 파싱
             result = json.loads(content)

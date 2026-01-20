@@ -122,29 +122,45 @@ export default function DashboardPage() {
     setIsLoading(true);
 
     try {
-      const formData = new FormData();
-      formData.append('content_id', selectedContent.content_id);
-      formData.append('style', selectedStyle);
-      formData.append('prompt', userPrompt);
+      // ✅ JSON 형식으로 요청 데이터 준비
+      const requestBody = {
+        prompt: userPrompt || `${selectedStyle} style background`, // 프롬프트가 없으면 기본값
+        style: selectedStyle,
+        aspect_ratio: 'square', // 또는 'portrait', 'landscape'
+        num_inference_steps: 30,
+      };
 
-      const response = await fetch(`${API_URL}/api/v1/generate-ad`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
-      });
+      console.log('🎨 AI 생성 시작:', requestBody);
+      console.log('🔗 엔드포인트:', `${API_URL}/api/contents/${selectedContent.content_id}/generate-background`);
+
+      // ✅ 올바른 엔드포인트 호출
+      const response = await fetch(
+        `${API_URL}/api/contents/${selectedContent.content_id}/generate-background`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json', // ✅ JSON 헤더 추가
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify(requestBody), // ✅ JSON으로 변환
+        }
+      );
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ 생성 완료:', data);
+        console.log('✅ 사용된 모드:', data.mode); // local or replicate
+        
         setGeneratedResult(data.result_url);
-        alert(`✅ 생성 완료! (${data.processing_time}초)`);
+        alert(`✅ 생성 완료! (${data.processing_time.toFixed(2)}초)\n모드: ${data.mode}`);
       } else {
-        throw new Error('Generation failed');
+        const errorData = await response.json();
+        console.error('❌ 에러 응답:', errorData);
+        throw new Error(errorData.detail || 'Generation failed');
       }
     } catch (error) {
-      console.error('Generate error:', error);
-      alert('❌ 생성 실패');
+      console.error('❌ Generate error:', error);
+      alert('❌ 생성 실패: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     } finally {
       setIsLoading(false);
     }

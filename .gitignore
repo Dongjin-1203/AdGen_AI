@@ -17,6 +17,7 @@ backend/.venv/
 backend/ENV/
 
 # Environment Variables
+*.env
 backend/.env
 backend/.env
 backend/.env.*.local
@@ -164,3 +165,5 @@ backend/adgen-ai-deploy-66686fad93e1.json
 
 # 이미지 파일 및 폴더
 backend/test_images/
+backend/dataset
+backend/models

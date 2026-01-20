@@ -1,32 +1,42 @@
 """
-Replicate API를 사용한 배경 생성
+Replicate API 배경 생성기
 GPU 인프라 관리 불필요, 종량제 과금
 """
 import replicate
 import logging
 import base64
 import io
+import requests
 from PIL import Image
 from typing import Optional
-from .style_prompts import StylePrompts
+
+from ....GPU_server.generation.prompts import PromptEngine, StylePrompts
 
 
 class ReplicateBackgroundGenerator:
-    """Replicate API를 사용한 SDXL 배경 생성"""
+    """Replicate API 기반 SDXL 배경 생성기"""
     
     def __init__(self, api_token: Optional[str] = None):
         """
         Args:
-            api_token: Replicate API 토큰 (없으면 환경 변수에서 자동 로드)
+            api_token: Replicate API 토큰 (없으면 환경 변수 REPLICATE_API_TOKEN 사용)
         """
         self.logger = logging.getLogger(__name__)
-        self.client = replicate.Client(api_token=api_token)
+        self.prompt_engine = PromptEngine()  # ✅
+
+        if api_token:
+            self.client = replicate.Client(api_token=api_token)
+        else:
+            # 환경 변수에서 자동 로드
+            self.client = replicate.Client()
+        
+        self.logger.info("✅ Replicate client initialized")
+        
         
     @staticmethod
     def _image_to_base64(image: Image.Image) -> str:
-        """PIL Image를 base64 문자열로 변환"""
+        """PIL Image를 base64 Data URI로 변환"""
         buffered = io.BytesIO()
-        # PNG로 저장 (투명도 유지)
         image.save(buffered, format="PNG")
         img_str = base64.b64encode(buffered.getvalue()).decode()
         return f"data:image/png;base64,{img_str}"
@@ -36,17 +46,18 @@ class ReplicateBackgroundGenerator:
         image: Image.Image, 
         target_width: int, 
         target_height: int, 
-        padding_percent: float = 0.8
+        padding_percent: float = 0.7,
+        vertical_alignment: str = "center"
     ) -> Image.Image:
-        """이미지 리사이즈 및 중앙 정렬"""
+        """이미지 리사이즈 및 배치"""
         # 투명 캔버스 생성
         canvas = Image.new("RGBA", (target_width, target_height), (0, 0, 0, 0))
         
-        # 패딩을 고려한 최대 크기 계산
+        # 최대 크기 계산
         max_w = int(target_width * padding_percent)
         max_h = int(target_height * padding_percent)
         
-        # 비율 유지하며 리사이즈
+        # 비율 유지 리사이즈
         img_w, img_h = image.size
         ratio = min(max_w / img_w, max_h / img_h)
         new_w = int(img_w * ratio)
@@ -54,9 +65,15 @@ class ReplicateBackgroundGenerator:
         
         resized_img = image.resize((new_w, new_h), Image.Resampling.LANCZOS)
         
-        # 중앙 배치
+        # 위치 계산
         x_offset = (target_width - new_w) // 2
-        y_offset = (target_height - new_h) // 2
+        
+        if vertical_alignment == "bottom":
+            y_offset = target_height - new_h - int(target_height * 0.05)
+        elif vertical_alignment == "top":
+            y_offset = int(target_height * 0.05)
+        else:
+            y_offset = (target_height - new_h) // 2
         
         canvas.paste(resized_img, (x_offset, y_offset))
         return canvas
@@ -69,55 +86,60 @@ class ReplicateBackgroundGenerator:
         style: str = "minimal",
         negative_prompt: str = "",
         num_inference_steps: int = 30,
-        controlnet_conditioning_scale: float = 0.5
+        controlnet_conditioning_scale: float = 0.5,
+        padding_percent: float = 0.7,
+        vertical_alignment: str = "center",
+        use_ip_adapter: bool = False
     ) -> Image.Image:
-        """
-        Replicate API를 사용하여 배경 생성
+        """Replicate API를 사용한 배경 생성"""
         
-        Args:
-            product_image: 제품 이미지 (배경 제거된 상태)
-            prompt_text: 생성할 배경 설명
-            aspect_ratio: "square", "portrait", "landscape"
-            style: "minimal", "emotional", "street"
-            negative_prompt: 제외할 요소
-            num_inference_steps: 생성 스텝 수
-            controlnet_conditioning_scale: ControlNet 강도
-            
-        Returns:
-            배경이 생성된 최종 이미지
-        """
-        # 인스타그램 비율 설정
+        # ===== 1. 타겟 크기 결정 =====
         dimensions = {
             "square": (1080, 1080),    # 1:1
             "portrait": (1080, 1352),  # 4:5
-            "landscape": (1080, 608)   # 16:9
+            "landscape": (1080, 608),  # 16:9
+            "test": (512, 512)         # 테스트용
         }
         
         target_width, target_height = dimensions.get(aspect_ratio, dimensions["square"])
         
-        # 스타일 프롬프트 가져오기
-        style_config = StylePrompts.get_prompt(style)
-        full_positive_prompt = f"{prompt_text}, {style_config['positive']}"
-        full_negative_prompt = f"{negative_prompt}, {style_config['negative']}"
+        # ===== 2. 안전한 프롬프트 생성 (PromptEngine 사용) =====
+        safe_prompts = self.prompt_engine.generate_simple_prompt(
+            user_prompt=prompt_text,
+            style=style
+        )
         
-        # 이미지 리사이즈 및 중앙 정렬
+        full_positive_prompt = safe_prompts["positive"]
+        full_negative_prompt = safe_prompts["negative"]
+        
+        # 사용자 네거티브 프롬프트 추가 (선택)
+        if negative_prompt:
+            full_negative_prompt = f"{negative_prompt}, {full_negative_prompt}"
+        
+        self.logger.info(
+            f"🎨 Generating with Replicate: style={style}, "
+            f"ratio={aspect_ratio} ({target_width}x{target_height})"
+        )
+        self.logger.debug(f"Prompt: {full_positive_prompt[:100]}...")
+        
+        # ===== 3. 이미지 전처리 =====
         processed_image = self._resize_and_center(
             product_image,
             target_width,
             target_height,
-            padding_percent=0.7
+            padding_percent=padding_percent,
+            vertical_alignment=vertical_alignment
         )
         
-        # base64 인코딩
+        # Base64 인코딩
         image_data_uri = self._image_to_base64(processed_image)
         
-        self.logger.info(
-            f"Generating with Replicate: style={style}, "
-            f"ratio={aspect_ratio} ({target_width}x{target_height})"
-        )
+        # ===== 4. IP-Adapter 경고 =====
+        if use_ip_adapter:
+            self.logger.warning("⚠️ IP-Adapter not supported by Replicate API (ignored)")
         
+        # ===== 5. Replicate API 호출 =====
         try:
-            # Replicate SDXL ControlNet 실행
             output = self.client.run(
                 "stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
                 input={
@@ -131,18 +153,17 @@ class ReplicateBackgroundGenerator:
                 }
             )
             
-            # 결과 이미지 로드
+            # ===== 6. 결과 이미지 다운로드 =====
             if isinstance(output, list) and len(output) > 0:
-                # Replicate는 URL을 반환
-                import requests
                 response = requests.get(output[0])
+                response.raise_for_status()
                 result_image = Image.open(io.BytesIO(response.content))
                 
-                self.logger.info("Background generation completed successfully")
+                self.logger.info("✅ Background generation completed successfully")
                 return result_image
             else:
-                raise Exception("No output from Replicate")
+                raise RuntimeError("No output from Replicate API")
                 
         except Exception as e:
-            self.logger.error(f"Replicate generation failed: {e}")
-            raise Exception(f"Failed to generate background: {str(e)}")
+            self.logger.error(f"❌ Replicate generation failed: {e}")
+            raise RuntimeError(f"Failed to generate background: {str(e)}")
