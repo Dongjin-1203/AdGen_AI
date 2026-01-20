@@ -11,7 +11,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: adgen-backend
-  REGION: us-central1  # GPU 서버와 동일한 리전
+  REGION: asia-northeast3  # GPU 서버와 동일한 리전
   IMAGE_NAME: adgen-backend
   REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
 
