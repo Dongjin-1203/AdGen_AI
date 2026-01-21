@@ -174,16 +174,6 @@ export default function ContentDetail() {
 
             {/* 액션 버튼들 */}
             <div className="space-y-3">
-              {/* 배경 생성 버튼 - 메인 CTA */}
-              <button
-                onClick={() => router.push(`/generate/${contentId}`)}
-                className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-bold text-lg hover:from-blue-700 hover:to-purple-700 transition shadow-lg flex items-center justify-center gap-2"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                </svg>
-                🎨 AI 배경 생성하기
-              </button>
 
               {/* 수정 버튼 */}
               <button
@@ -210,16 +200,6 @@ export default function ContentDetail() {
                 </svg>
                 삭제
               </button>
-            </div>
-
-            {/* 안내 메시지 */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h3 className="font-semibold text-blue-900 mb-2">💡 다음 단계</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
-                <li>• [AI 배경 생성하기]를 클릭하여 새로운 배경을 만들어보세요</li>
-                <li>• 다양한 스타일과 비율로 여러 버전을 생성할 수 있습니다</li>
-                <li>• 생성된 이미지는 바로 다운로드 가능합니다</li>
-              </ul>
             </div>
           </div>
         </div>

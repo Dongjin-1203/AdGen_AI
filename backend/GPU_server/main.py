@@ -14,6 +14,7 @@ import os
 
 from config import settings
 from generation.local_generator import SDXLGenerator
+from generation.fashion_ad_pipeline import FashionAdPipeline
 
 # ===== 로깅 설정 =====
 logging.basicConfig(
@@ -24,34 +25,33 @@ logger = logging.getLogger(__name__)
 
 # ===== 전역 Generator =====
 generator = None
+fashion_pipeline = None
 
 # ===== Lifespan 컨텍스트 매니저 =====
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """서버 시작/종료 시 실행"""
-    global generator
+    global generator, fashion_pipeline  # fashion_pipeline 추가
     
     logger.info("=" * 60)
     logger.info("🚀 GPU 서버 시작")
-    logger.info(f"📍 환경: {settings.ENVIRONMENT}")
-    logger.info(f"🎮 CUDA 사용 가능: {torch.cuda.is_available()}")
-    
-    if torch.cuda.is_available():
-        gpu_name = torch.cuda.get_device_name(0)
-        gpu_memory = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-        logger.info(f"🎮 GPU: {gpu_name}")
-        logger.info(f"💾 GPU 메모리: {gpu_memory:.1f} GB")
-    else:
-        logger.error("❌ CUDA를 사용할 수 없습니다!")
-        if settings.FORCE_CUDA:
-            raise RuntimeError("GPU가 필요하지만 CUDA를 사용할 수 없습니다.")
+    # ... 기존 코드 ...
     
     # ===== 모델 로드 =====
     try:
         logger.info("📦 SDXL 모델 로딩 중...")
         generator = SDXLGenerator(device="cuda" if torch.cuda.is_available() else "cpu")
         generator.load_model()
-        logger.info("✅ 모델 로드 완료")
+        logger.info("✅ SDXL 모델 로드 완료")
+        
+        # Fashion Pipeline 초기화 (SDXL generator 재사용)
+        logger.info("📦 Fashion Ad Pipeline 초기화 중...")
+        fashion_pipeline = FashionAdPipeline(
+            sdxl_generator=generator,
+            device="cuda" if torch.cuda.is_available() else "cpu"
+        )
+        logger.info("✅ Fashion Ad Pipeline 초기화 완료")
+        
     except Exception as e:
         logger.error(f"❌ 모델 로드 실패: {e}")
         logger.exception(e)
@@ -61,6 +61,10 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     
     yield
+    
+    # Cleanup
+    if fashion_pipeline:
+        fashion_pipeline.cleanup()
     
     logger.info("👋 GPU 서버 종료")
 
@@ -91,8 +95,11 @@ async def root():
         "status": "active",
         "cuda_available": torch.cuda.is_available(),
         "model_loaded": generator is not None,
+        "fashion_pipeline_loaded": fashion_pipeline is not None,
         "endpoints": {
-            "generate": "POST /generate",
+            "generate": "POST /generate (배경 생성)",
+            "generate_fashion_ad": "POST /generate-fashion-ad (패션 광고 생성)",
+            "fashion_styles": "GET /fashion-ad/styles (스타일 목록)",
             "health": "GET /health",
             "gpu_info": "GET /gpu/info"
         }
@@ -204,6 +211,107 @@ async def generate_background(
         logger.error(f"❌ 배경 생성 실패: {e}")
         logger.exception(e)
         raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+    
+@app.post("/generate-fashion-ad")
+async def generate_fashion_ad(
+    garment: UploadFile = File(..., description="옷 이미지 (JPG/PNG)"),
+    style: str = Form(..., description="스타일 (minimal/vintage/modern/natural/luxury)"),
+    garment_description: str = Form(default=None, description="옷 설명 (선택)"),
+    aspect_ratio: str = Form(default="square", description="비율 (square/portrait/landscape)"),
+    prompt: str = Form(default=None, description="배경 프롬프트 (선택)"),
+    num_inference_steps: int = Form(default=30, description="생성 스텝 (20-50)"),
+    model_index: int = Form(default=None, description="특정 모델 인덱스 (선택)")
+):
+    """
+    패션 광고 생성 (IDM-VTON + SDXL)
+    
+    워크플로우:
+    1. K-Fashion 모델 자동 선택
+    2. 의류 마스크 + DensePose 생성
+    3. IDM-VTON 가상 착장
+    4. SDXL 배경 생성
+    
+    Returns:
+        생성된 광고 이미지 (image/png)
+    """
+    # 모델 로드 확인
+    if fashion_pipeline is None:
+        raise HTTPException(status_code=503, detail="Fashion pipeline not loaded")
+    
+    try:
+        # 이미지 로드
+        garment_data = await garment.read()
+        garment_image = Image.open(io.BytesIO(garment_data)).convert("RGB")
+        
+        logger.info("=" * 60)
+        logger.info("🎨 Fashion Ad Generation Request")
+        logger.info(f"   Style: {style}")
+        logger.info(f"   Aspect Ratio: {aspect_ratio}")
+        logger.info(f"   Garment Image: {garment_image.size}")
+        if model_index is not None:
+            logger.info(f"   Model Index: {model_index}")
+        logger.info("=" * 60)
+        
+        # 광고 생성
+        result_image = fashion_pipeline.generate(
+            garment_image=garment_image,
+            style=style,
+            garment_description=garment_description,
+            aspect_ratio=aspect_ratio,
+            prompt_text=prompt,
+            num_inference_steps=num_inference_steps,
+            model_index=model_index
+        )
+        
+        # PNG로 변환
+        output_buffer = io.BytesIO()
+        result_image.save(output_buffer, format="PNG", quality=95)
+        output_buffer.seek(0)
+        
+        logger.info(f"✅ Fashion ad generation complete: {result_image.size}")
+        
+        return Response(
+            content=output_buffer.getvalue(),
+            media_type="image/png",
+            headers={
+                "X-Image-Width": str(result_image.width),
+                "X-Image-Height": str(result_image.height),
+                "X-Style": style,
+                "X-Processing-Type": "idm-vton+sdxl"
+            }
+        )
+        
+    except ValueError as e:
+        # 스타일 오류 등
+        logger.error(f"❌ Validation error: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+        
+    except Exception as e:
+        logger.error(f"❌ Fashion ad generation failed: {e}")
+        logger.exception(e)
+        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+
+
+@app.get("/fashion-ad/styles")
+async def get_fashion_styles():
+    """
+    사용 가능한 스타일 목록 반환
+    """
+    if fashion_pipeline is None:
+        raise HTTPException(status_code=503, detail="Fashion pipeline not loaded")
+    
+    try:
+        available_styles = fashion_pipeline.model_selector.get_available_styles()
+        model_counts = fashion_pipeline.model_selector.get_all_models_info()
+        
+        return {
+            "styles": available_styles,
+            "model_counts": model_counts,
+            "style_mapping": fashion_pipeline.model_selector.STYLE_MAPPING
+        }
+    except Exception as e:
+        logger.error(f"Failed to get fashion styles: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ===== 서버 시작 로그 =====
 logger.info("✅ FastAPI 앱 초기화 완료")

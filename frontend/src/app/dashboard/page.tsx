@@ -34,6 +34,13 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [generatedResult, setGeneratedResult] = useState<string>('');
 
+  // 스타일 정의 (상수)
+  const AVAILABLE_STYLES = [
+    { value: 'resort', label: '리조트', emoji: '🏖️', description: '밝고 경쾌한 휴양지 분위기' },
+    { value: 'retro', label: '레트로', emoji: '📻', description: '빈티지하고 복고적인 감성' },
+    { value: 'romantic', label: '로맨틱', emoji: '💕', description: '부드럽고 여성스러운 분위기' },
+  ] as const;
+
   useEffect(() => {
     if (!token) {
       router.push('/login');
@@ -318,14 +325,8 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-5 gap-4 mb-6">
-              {[
-                { value: 'minimal', label: '미니멀', emoji: '⚪' },
-                { value: 'modern', label: '모던', emoji: '🏙️' },
-                { value: 'vintage', label: '빈티지', emoji: '📻' },
-                { value: 'natural', label: '내추럴', emoji: '🌿' },
-                { value: 'luxury', label: '럭셔리', emoji: '💎' },
-              ].map((style) => (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {AVAILABLE_STYLES.map((style) => (
                 <button
                   key={style.value}
                   type="button"

@@ -30,6 +30,99 @@ class GPUServerClient:
         except Exception as e:
             logger.error(f"GPU 서버 연결 실패: {e}")
             return {"status": "unavailable", "error": str(e)}
+        
+    async def generate_fashion_ad(
+        self,
+        product_image: bytes,
+        style: str,
+        garment_description: str = None,
+        aspect_ratio: str = "square",
+        prompt: str = None,
+        num_inference_steps: int = 30,
+        model_index: int = None
+    ) -> bytes:
+        """패션 광고 생성 (IDM-VTON + SDXL)"""
+        url = f"{self.base_url}/generate-fashion-ad"
+        
+        # Multipart form data 구성
+        files = {
+            "garment": ("garment.jpg", product_image, "image/jpeg")
+        }
+        
+        data = {
+            "style": style,
+            "aspect_ratio": aspect_ratio,
+            "num_inference_steps": num_inference_steps
+        }
+        
+        # 선택적 파라미터
+        if garment_description:
+            data["garment_description"] = garment_description
+        if prompt:
+            data["prompt"] = prompt
+        if model_index is not None:
+            data["model_index"] = model_index
+        
+        logger.info(f"[GPU Client] Requesting fashion ad: style={style}, ratio={aspect_ratio}")
+        
+        try:
+            async with httpx.AsyncClient(timeout=600.0) as client:  # 10분 타임아웃 (IDM-VTON 느림)
+                response = await client.post(url, files=files, data=data)
+                response.raise_for_status()
+                
+                logger.info(f"[GPU Client] ✅ Fashion ad generated successfully")
+                return response.content
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"[GPU Client] GPU server error: {e.response.status_code}")
+            logger.error(f"[GPU Client] Response: {e.response.text}")
+            raise Exception(
+                status_code=e.response.status_code,
+                detail=f"GPU 서버 오류: {e.response.text}"
+            )
+        except httpx.TimeoutException as e:
+            logger.error(f"[GPU Client] Timeout: {e}")
+            raise Exception(
+                status_code=504,
+                detail="GPU 서버 응답 시간 초과 (처리 시간이 너무 오래 걸립니다)"
+            )
+        except Exception as e:
+            logger.error(f"[GPU Client] Fashion ad generation failed: {e}")
+            raise Exception(
+                status_code=500,
+                detail=f"패션 광고 생성 실패: {str(e)}"
+            )
+
+    async def get_fashion_styles(self) -> dict:
+        """
+        사용 가능한 스타일 목록 조회
+        
+        Returns:
+            {
+                "styles": [...],
+                "model_counts": {...},
+                "style_mapping": {...}
+            }
+        
+        Raises:
+            Exception: 조회 실패
+        """
+        url = f"{self.base_url}/fashion-ad/styles"
+        
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(url)
+                response.raise_for_status()
+                
+                logger.info("[GPU Client] Fashion styles retrieved")
+                return response.json()
+                
+        except httpx.HTTPStatusError as e:
+            logger.error(f"[GPU Client] Failed to get styles: {e.response.status_code}")
+            raise Exception(f"GPU 서버에서 스타일 목록을 가져올 수 없습니다: {e.response.text}")
+        except Exception as e:
+            logger.error(f"[GPU Client] Failed to get fashion styles: {e}")
+            raise Exception(f"스타일 목록 조회 실패: {str(e)}")
     
     async def generate_background(
         self,
@@ -42,25 +135,7 @@ class GPUServerClient:
         controlnet_scale: float = 0.5,
         ip_adapter_scale: float = 0.8
     ) -> Image.Image:
-        """
-        GPU 서버로 배경 생성 요청
-        
-        Args:
-            product_image: 제품 이미지 (PIL Image)
-            prompt_text: 배경 생성 프롬프트
-            style: 스타일 (minimal, modern, luxury, natural, vibrant)
-            aspect_ratio: 이미지 비율 (1:1, 4:3, 16:9)
-            num_inference_steps: 생성 스텝 수 (20-50)
-            guidance_scale: 가이던스 스케일 (7-15)
-            controlnet_scale: ControlNet 강도 (0.3-0.8)
-            ip_adapter_scale: IP-Adapter 강도 (0.5-1.0)
-        
-        Returns:
-            생성된 이미지 (PIL Image)
-        
-        Raises:
-            RuntimeError: GPU 서버 요청 실패 시
-        """
+        """GPU 서버로 배경 생성 요청"""
         try:
             # 이미지를 BytesIO로 변환
             img_buffer = io.BytesIO()
