@@ -16,11 +16,74 @@ from app.db.base import get_db
 from app.models.schemas import UserContent, User, GenerationHistory  
 from app.api.routes.auth import get_current_user  
 from app.services.gpu_client import GPUServerClient
-from GPU_server.generation.prompts.style_prompts import StylePrompts
 from app.core.storage import download_from_gcs, upload_to_gcs
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# ===== 스타일별 프롬프트 정의 (GPU_server에서 복사) =====
+STYLE_PROMPTS = {
+    'minimal': {
+        'positive': (
+            "professional product photography, commercial use, "
+            "minimalist background, clean lines, solid soft colors, "
+            "high quality studio lighting, safe for work, "
+            "8k uhd, soft shadows, neutral tones, simple composition, "
+            "professional commercial shoot"
+        ),
+        'negative': (
+            "nsfw, inappropriate content, adult content, nudity, "
+            "cluttered, messy, distracting elements, harsh shadows, "
+            "complex patterns, bright neon, low quality, grainy, "
+            "distorted, amateur, unprofessional"
+        )
+    },
+    'emotional': {
+        'positive': (
+            "professional lifestyle photography, commercial quality, "
+            "warm atmosphere, soft sunlight, nature elements, cozy vibe, "
+            "safe for work, depth of field, golden hour, emotional, "
+            "cinematic lighting, 8k, highly detailed, "
+            "professional commercial shoot"
+        ),
+        'negative': (
+            "nsfw, inappropriate content, adult content, nudity, "
+            "cold, sterile, artificial lighting, flat, cartoon, sketch, "
+            "monochrome, low resolution, ugly, blurry, "
+            "amateur, unprofessional"
+        )
+    },
+    'street': {
+        'positive': (
+            "professional urban fashion photography, commercial shoot, "
+            "street style, concrete texture, city background, "
+            "vibrant colors, safe for work, neon lights, high contrast, "
+            "dynamic lighting, trendy, sharp, 8k quality, "
+            "professional commercial advertisement"
+        ),
+        'negative': (
+            "nsfw, inappropriate content, adult content, nudity, "
+            "rural, rustic, vintage, soft, pastel, plain, "
+            "studio background, boring, dull, low quality, "
+            "amateur, graffiti, dirty"
+        )
+    },
+    'instagram': {
+        'positive': (
+            "professional influencer photography, commercial quality, "
+            "instagram aesthetic, lifestyle photography, safe for work, "
+            "soft natural lighting, cafe background, high engagement, "
+            "trendy, social media ready, 4k quality, "
+            "professional commercial shoot"
+        ),
+        'negative': (
+            "nsfw, inappropriate content, adult content, nudity, "
+            "ugly, distorted, low quality, watermark, text, "
+            "bad composition, oversaturated, blurry, "
+            "amateur, unprofessional"
+        )
+    }
+}
 
 # ===== GPU Client (싱글톤) ===== 
 gpu_client = None
@@ -99,7 +162,9 @@ async def generate_ad_from_content(
         }
         
         mapped_style = style_map.get(style.lower(), 'minimal')
-        prompt_dict = StylePrompts.get_prompt(mapped_style)
+        
+        # 백엔드에 정의된 프롬프트 딕셔너리 사용
+        prompt_dict = STYLE_PROMPTS.get(mapped_style, STYLE_PROMPTS['minimal'])
         base_prompt = prompt_dict.get('positive', '')
         
         # 사용자 프롬프트 추가 
