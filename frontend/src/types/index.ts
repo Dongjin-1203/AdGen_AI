@@ -26,6 +26,21 @@ export interface Content {
   color: string;
   price: number;
   thumbnail_url: string;
-  image_url: string;        // ← 추가!
+  image_url: string;
   created_at: string;
+}
+
+export interface History {
+  history_id: string;
+  content_id: string;
+  user_id: string;
+  style: string;
+  prompt?: string;              // Optional - 사용자 추가 프롬프트
+  result_url: string;           // 생성된 이미지 URL
+  processing_time: number;      // 처리 시간 (초)
+  created_at: string;           // 생성 일시
+  
+  // 백엔드에서 JOIN으로 가져오는 추가 정보
+  original_image_url?: string;  // 원본 이미지 URL
+  product_name?: string;        // 제품명
 }

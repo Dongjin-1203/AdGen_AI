@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { User, SignupRequest, Token, Content } from '@/types';
+import { User, SignupRequest, Token, Content, History } from '@/types';
 
 // 백엔드 환경변수 지정
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -55,4 +55,12 @@ export const contentAPI = {
   upload: (formData: FormData) => api.post<Content>('/api/contents/upload', formData),
   getAll: () => api.get<Content[]>('/api/contents'),
   getOne: (id: string) => api.get<Content>(`/api/contents/${id}`),
+};
+
+export const historyAPI = {
+  // 사용자별 히스토리 조회
+  getByUserId: (userId: string) => api.get<History[]>(`/api/v1/history/${userId}`),
+  
+  // 히스토리 삭제
+  delete: (historyId: string) => api.delete(`/api/v1/history/${historyId}`),
 };
