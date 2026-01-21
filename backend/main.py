@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
     if hasattr(settings, 'USE_GPU_SERVER') and settings.USE_GPU_SERVER:
         try:
             logger.info("🔌 GPU 서버 연결 확인 중...")
-            from app.services.generation.gpu_client import GPUServerClient
+            from app.services.gpu_client import GPUServerClient  # ← 수정됨
             
             gpu_client = GPUServerClient()
             if await gpu_client.health_check():
