@@ -11,7 +11,7 @@ on:
 env:
   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
   SERVICE_NAME: adgen-backend
-  REGION: asia-northeast3  # GPU 서버와 동일한 리전
+  REGION: asia-northeast3
   IMAGE_NAME: adgen-backend
   REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
 
@@ -55,12 +55,17 @@ jobs:
             --allow-unauthenticated \
             --set-env-vars ENVIRONMENT=production \
             --set-env-vars GPU_SERVER_URL=http://34.59.198.57:8001 \
-            --set-env-vars GPU_SERVER_TIMEOUT=120 \
-            --set-env-vars DATABASE_URL=sqlite:///./adgen.db \
+            --set-env-vars GPU_SERVER_TIMEOUT=600 \
+            --set-env-vars CLOUD_SQL_CONNECTION_NAME=${{ secrets.CLOUD_SQL_CONNECTION_NAME }} \
+            --set-env-vars DB_USER=${{ secrets.DB_USER }} \
+            --set-env-vars DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
+            --set-env-vars DB_NAME=${{ secrets.DB_NAME }} \
             --set-env-vars JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }} \
             --set-env-vars GCS_BUCKET_NAME=${{ secrets.GCS_BUCKET_NAME }} \
             --set-env-vars GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }} \
+            --set-env-vars GOOGLE_API_KEY_2=${{ secrets.GOOGLE_MODEL_API_KEY }} \
             --set-env-vars REPLICATE_API_TOKEN=${{ secrets.REPLICATE_API_TOKEN }} \
+            --add-cloudsql-instances=${{ secrets.CLOUD_SQL_CONNECTION_NAME }} \
             --memory 1Gi \
             --timeout 300s \
             --max-instances 10 \
