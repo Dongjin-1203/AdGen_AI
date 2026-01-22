@@ -3,13 +3,6 @@ import { User, SignupRequest, Token, Content, History } from '@/types';
 
 // 백엔드 환경변수 지정
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-export const contentAPI = {
-  upload: (formData: FormData) => api.post<Content>('/api/contents/upload', formData),
-  getAll: () => api.get<Content[]>('/api/contents'),
-  getOne: (id: string) => api.get<Content>(`/api/contents/${id}`),
-  update: (id: string, data: any) => api.patch(`/api/contents/${id}`, data),  // 🆕
-  delete: (id: string) => api.delete(`/api/contents/${id}`),  // 🆕
-};
 
 console.log('🔍 API_URL:', API_URL);
 
@@ -62,6 +55,8 @@ export const contentAPI = {
   upload: (formData: FormData) => api.post<Content>('/api/contents/upload', formData),
   getAll: () => api.get<Content[]>('/api/contents'),
   getOne: (id: string) => api.get<Content>(`/api/contents/${id}`),
+  update: (id: string, data: any) => api.patch(`/api/contents/${id}`, data),  // 🆕
+  delete: (id: string) => api.delete(`/api/contents/${id}`),  // 🆕
 };
 
 export const historyAPI = {
