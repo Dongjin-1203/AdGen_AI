@@ -120,6 +120,7 @@ class ReplicateVTONService:
             logger.info(f"   [VTON] Parameters:")
             logger.info(f"      - garm_img: {temp_garment_url}")
             logger.info(f"      - human_img: {model_image_url}")
+            logger.info(f"      - garment_des: A {style} style garment")
             logger.info(f"      - category: upper_body")
             logger.info(f"      - steps: 30")
             logger.info(f"      - seed: 42")
@@ -129,6 +130,7 @@ class ReplicateVTONService:
                 input={
                     "garm_img": temp_garment_url,
                     "human_img": model_image_url,
+                    "garment_des": f"A {style} style garment",
                     "category": "upper_body",
                     "steps": 30,
                     "seed": 42
