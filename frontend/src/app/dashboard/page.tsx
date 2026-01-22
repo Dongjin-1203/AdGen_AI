@@ -61,6 +61,7 @@ export default function DashboardPage() {
       title: '1️⃣ 이미지 선택',
       status: 'processing',
       content: null,
+      timestamp: new Date(),
     });
 
     fetchContents();
@@ -142,6 +143,7 @@ export default function DashboardPage() {
         title: '2️⃣ AI 스타일 선택',
         status: 'processing',
         content: null,
+        timestamp: new Date(),
       });
     }, 300);
   };
@@ -174,6 +176,7 @@ export default function DashboardPage() {
         title: '3️⃣ AI 광고 생성',
         status: 'processing',
         content: null,
+        timestamp: new Date(),
       });
     }, 300);
   };
@@ -229,7 +232,7 @@ export default function DashboardPage() {
                 />
               </div>
               <div className="flex gap-3">
-                
+                <a
                   href={data.result_url}
                   download="generated-ad.jpg"
                   className="flex-1 text-center py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
@@ -292,6 +295,7 @@ export default function DashboardPage() {
       title: '1️⃣ 이미지 선택',
       status: 'processing',
       content: null,
+      timestamp: new Date(),
     });
   };
 
