@@ -1,8 +1,10 @@
 """
 Gemini API 기반 패션 광고 이미지 생성 서비스
 GPU 서버 없이 Google Gemini API로 이미지 생성
+google-genai 최신 SDK + gemini-2.5-flash-image 모델 사용
 """
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from PIL import Image
 import io
 import logging
@@ -14,16 +16,17 @@ logger = logging.getLogger(__name__)
 
 
 class GeminiImageGenerator:
-    """Gemini API를 사용한 이미지 생성"""
+    """Gemini API를 사용한 이미지 생성 (최신 SDK)"""
     
     def __init__(self):
         """Gemini API 초기화"""
         if not settings.GOOGLE_MODEL_API_KEY:
             raise ValueError("GOOGLE_MODEL_API_KEY not found in settings")
         
-        genai.configure(api_key=settings.GOOGLE_MODEL_API_KEY)
-        self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
-        logger.info("✅ Gemini Image Generator initialized")
+        # 최신 SDK 클라이언트 생성
+        self.client = genai.Client(api_key=settings.GOOGLE_MODEL_API_KEY)
+        self.model = "gemini-2.5-flash-image"  # GA 모델
+        logger.info(f"✅ Gemini Image Generator initialized (model: {self.model})")
     
     def generate_fashion_ad(
         self,
@@ -46,22 +49,22 @@ class GeminiImageGenerator:
             # 스타일별 프롬프트
             style_prompts = {
                 'resort': (
-                    "Create a professional resort-style fashion advertisement. "
-                    "Show the clothing item in a bright, tropical beach setting with "
-                    "natural sunlight, ocean background, and vacation vibes. "
-                    "Professional photography quality, commercial shoot style."
+                    "Transform this clothing item into a professional resort-style fashion advertisement. "
+                    "Place it in a bright, tropical beach setting with natural sunlight, ocean background, "
+                    "and vacation vibes. Create a professional commercial photography style with high quality. "
+                    "Keep the clothing item as the main focus but enhance the background and atmosphere."
                 ),
                 'retro': (
-                    "Create a professional retro-style fashion advertisement. "
-                    "Show the clothing item in a vintage 70s-80s aesthetic with "
-                    "nostalgic atmosphere, analog film quality, and classic poses. "
-                    "Professional photography quality, editorial style."
+                    "Transform this clothing item into a professional retro-style fashion advertisement. "
+                    "Place it in a vintage 70s-80s aesthetic setting with nostalgic atmosphere, "
+                    "analog film quality look, and classic poses. Create an editorial photography style. "
+                    "Keep the clothing item as the main focus but add retro elements and color grading."
                 ),
                 'romantic': (
-                    "Create a professional romantic-style fashion advertisement. "
-                    "Show the clothing item in a soft, feminine setting with "
-                    "dreamy atmosphere, pastel colors, and elegant mood. "
-                    "Professional photography quality, luxury brand style."
+                    "Transform this clothing item into a professional romantic-style fashion advertisement. "
+                    "Place it in a soft, feminine setting with dreamy atmosphere, pastel colors, "
+                    "and elegant mood. Create a luxury brand photography style with professional lighting. "
+                    "Keep the clothing item as the main focus but enhance with romantic elements."
                 )
             }
             
@@ -74,6 +77,7 @@ class GeminiImageGenerator:
                 final_prompt = base_prompt
             
             logger.info(f"🎨 Generating fashion ad with Gemini")
+            logger.info(f"   Model: {self.model}")
             logger.info(f"   Style: {style}")
             logger.info(f"   Prompt length: {len(final_prompt)} chars")
             
@@ -81,23 +85,33 @@ class GeminiImageGenerator:
             img_byte_arr = io.BytesIO()
             product_image.save(img_byte_arr, format='PNG')
             img_byte_arr.seek(0)
+            image_bytes = img_byte_arr.getvalue()
             
-            # Gemini API 호출
-            response = self.model.generate_content([
-                final_prompt,
-                {
-                    'mime_type': 'image/png',
-                    'data': img_byte_arr.getvalue()
-                }
-            ])
+            # Gemini 2.5 Flash Image로 이미지 생성
+            # 입력: 텍스트 프롬프트 + 제품 이미지
+            # 출력: 변환된 광고 이미지
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=[
+                    final_prompt,
+                    types.Part.from_bytes(
+                        data=image_bytes,
+                        mime_type='image/png'
+                    )
+                ],
+                config=types.GenerateContentConfig(
+                    response_modalities=['IMAGE'],  # 이미지만 출력
+                    image_config=types.ImageConfig(
+                        aspect_ratio='1:1',  # 정사각형
+                    )
+                )
+            )
             
             # 생성된 이미지 추출
             if response.candidates and len(response.candidates) > 0:
-                candidate = response.candidates[0]
-                
-                # 이미지 파트 찾기
-                for part in candidate.content.parts:
-                    if hasattr(part, 'inline_data'):
+                for part in response.candidates[0].content.parts:
+                    # 이미지 데이터 찾기
+                    if hasattr(part, 'inline_data') and part.inline_data:
                         image_data = part.inline_data.data
                         result_image = Image.open(io.BytesIO(image_data))
                         
@@ -116,8 +130,10 @@ class GeminiImageGenerator:
         """Gemini API 상태 확인"""
         try:
             # 간단한 텍스트 생성으로 테스트
-            test_model = genai.GenerativeModel('gemini-pro')
-            response = test_model.generate_content("Hello")
+            response = self.client.models.generate_content(
+                model='gemini-2.0-flash-exp',  # 텍스트 전용 모델로 테스트
+                contents='Hello'
+            )
             return bool(response.text)
         except Exception as e:
             logger.error(f"Gemini health check failed: {e}")
