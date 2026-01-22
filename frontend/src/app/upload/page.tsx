@@ -40,6 +40,9 @@ export default function UploadPage() {
   const [styleTags, setStyleTags] = useState<string[]>([]);
   const [price, setPrice] = useState('');
   
+  // ⭐ 편집 모드 상태
+  const [isEditing, setIsEditing] = useState(false);
+  
   const [step, setStep] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +53,21 @@ export default function UploadPage() {
     }
   }, [user, router]);
 
-  const handleSaveOptional = async () => {
+  // ⭐ AI 분석 결과 저장 (수정사항 포함)
+  const handleSaveAnalysis = async () => {
     if (!uploadedContentId) return;
 
     try {
+      setLoading(true);
+      
       const formData = new FormData();
+      formData.append('category', category);
+      formData.append('sub_category', subCategory);
+      formData.append('color', color);
+      formData.append('material', material);
+      formData.append('fit', fit);
+      formData.append('style_tags', JSON.stringify(styleTags));
+      
       if (productName) formData.append('product_name', productName);
       if (price) formData.append('price', price);
 
@@ -67,10 +80,16 @@ export default function UploadPage() {
       });
 
       if (response.ok) {
-        alert('저장되었습니다!');
+        alert('✅ 저장되었습니다!');
+        setIsEditing(false);
+      } else {
+        throw new Error('저장 실패');
       }
     } catch (err) {
       console.error('저장 실패:', err);
+      alert('❌ 저장에 실패했습니다.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -255,20 +274,6 @@ export default function UploadPage() {
         {/* 2단계: Vision AI 결과 확인 */}
         {step === 2 && visionResult && (
           <div className="space-y-6">
-            {/* AI 분석 결과 요약 */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-2xl">🤖</span>
-                <h2 className="text-xl font-bold text-blue-900">AI 분석 완료!</h2>
-              </div>
-              <p className="text-blue-800 mb-2">
-                신뢰도: <strong>{(visionResult.confidence * 100).toFixed(1)}%</strong>
-              </p>
-              <p className="text-sm text-blue-600">
-                분석 결과가 자동으로 저장되었습니다. 갤러리에서 확인하세요!
-              </p>
-            </div>
-
             {/* 미리보기 */}
             <div className="bg-white rounded-lg shadow-md p-4">
               <img
@@ -278,69 +283,161 @@ export default function UploadPage() {
               />
             </div>
 
-            {/* AI 분석 결과 표시 (읽기 전용) */}
+            {/* ⭐ AI 분석 결과 (편집 가능) */}
             <div className="bg-white rounded-lg shadow-md p-6 space-y-4">
-              <h3 className="text-lg font-bold mb-4">AI 분석 결과</h3>
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">AI 분석 결과</h3>
+                {!isEditing ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
+                  >
+                    ✏️ 수정
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsEditing(false)}
+                      className="px-4 py-2 bg-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-400 transition"
+                    >
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveAnalysis}
+                      disabled={loading}
+                      className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition"
+                    >
+                      {loading ? '저장 중...' : '💾 저장'}
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
+                {/* 카테고리 */}
                 <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">
                     카테고리
                   </label>
-                  <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
-                    {category || '-'}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={category}
+                      onChange={(e) => setCategory(e.target.value)}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
+                      {category || '-'}
+                    </div>
+                  )}
                 </div>
 
+                {/* 세부 카테고리 */}
                 <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">
                     세부 카테고리
                   </label>
-                  <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
-                    {subCategory || '-'}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={subCategory}
+                      onChange={(e) => setSubCategory(e.target.value)}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
+                      {subCategory || '-'}
+                    </div>
+                  )}
                 </div>
 
+                {/* 색상 */}
                 <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">
                     색상
                   </label>
-                  <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
-                    {color || '-'}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={color}
+                      onChange={(e) => setColor(e.target.value)}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
+                      {color || '-'}
+                    </div>
+                  )}
                 </div>
 
+                {/* 소재 */}
                 <div>
                   <label className="block mb-2 text-sm font-medium text-gray-700">
                     소재
                   </label>
-                  <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
-                    {material || '-'}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      type="text"
+                      value={material}
+                      onChange={(e) => setMaterial(e.target.value)}
+                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
+                      {material || '-'}
+                    </div>
+                  )}
                 </div>
               </div>
 
+              {/* 핏/스타일 */}
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700">
                   핏/스타일
                 </label>
-                <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
-                  {fit || '-'}
-                </div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={fit}
+                    onChange={(e) => setFit(e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
+                    {fit || '-'}
+                  </div>
+                )}
               </div>
 
+              {/* 스타일 태그 */}
               <div>
                 <label className="block mb-2 text-sm font-medium text-gray-700">
                   스타일 태그
                 </label>
-                <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
-                  {styleTags.length > 0 ? styleTags.join(', ') : '-'}
-                </div>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    value={styleTags.join(', ')}
+                    onChange={(e) => setStyleTags(e.target.value.split(',').map(t => t.trim()))}
+                    placeholder="쉼표로 구분: 캐주얼, 데일리"
+                    className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                ) : (
+                  <div className="px-4 py-2 border rounded-lg bg-yellow-50 font-medium">
+                    {styleTags.length > 0 ? styleTags.join(', ') : '-'}
+                  </div>
+                )}
               </div>
 
-              <p className="text-xs text-gray-500 mt-4">
-                💡 갤러리에서 상세 정보를 수정할 수 있습니다
-              </p>
+              {!isEditing && (
+                <p className="text-xs text-gray-500 mt-4">
+                  💡 결과가 정확하지 않다면 수정 버튼을 눌러 수정하세요
+                </p>
+              )}
             </div>
 
             {/* 추가 정보 입력 필드 */}
@@ -385,22 +482,12 @@ export default function UploadPage() {
                   setFile(null);
                   setPreviewUrl(null);
                   setVisionResult(null);
+                  setIsEditing(false);
                 }}
                 className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
               >
                 다시 업로드
               </button>
-              
-              {/* 저장 버튼 (선택사항 있을 때만) */}
-              {(productName || price) && (
-                <button
-                  type="button"
-                  onClick={handleSaveOptional}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition"
-                >
-                  저장하기
-                </button>
-              )}
               
               <button
                 type="button"
