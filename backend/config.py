@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     GPU_SERVER_URL: str = "http://34.59.198.57:8001"
     GPU_SERVER_TIMEOUT: int = 120  # 초 단위
     USE_GPU_SERVER: bool = True  # ← 추가: GPU 서버 사용 여부
+
+    # ===== Replicate API =====
+    REPLICATE_API_TOKEN: Optional[str] = None
     
     # ===== CORS =====
     allow_origins: List[str] = [

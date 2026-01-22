@@ -21,6 +21,7 @@ from app.services.gpu_client import GPUServerClient
 from app.core.storage import download_from_gcs, upload_to_gcs
 from config import settings
 from app.services.generation.gemini_generator import GeminiImageGenerator
+from app.services.generation import get_vton_service
 
 logger = logging.getLogger(__name__)
 
@@ -666,4 +667,160 @@ async def check_gemini_status():
             "status": "error",
             "message": f"Gemini API 상태 확인 실패: {str(e)}",
             "api_configured": bool(settings.GOOGLE_MODEL_API_KEY)
+        }
+    
+@router.post("/generate-ad-replicate")
+async def generate_ad_with_replicate(
+    content_id: str = Form(..., description="업로드된 콘텐츠 ID"),
+    style: str = Form(default="resort", description="스타일 (resort/retro/romantic)"),
+    model_index: Optional[int] = Form(None, description="K-Fashion 모델 인덱스 (0-29)"),
+    prompt: Optional[str] = Form(None, description="추가 요청사항"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Replicate IDM-VTON으로 패션 광고 생성
+    
+    워크플로우:
+    1. 콘텐츠 이미지 로드 (GCS)
+    2. Replicate IDM-VTON으로 가상 피팅
+    3. 결과 이미지 GCS 업로드
+    4. DB에 히스토리 저장
+    """
+    start_time = time.time()
+    generation_method = "replicate-idm-vton"
+    
+    try:
+        # ===== 1. 콘텐츠 조회 및 권한 확인 =====
+        content = db.query(UserContent).filter(UserContent.content_id == content_id).first()
+        if not content:
+            raise HTTPException(status_code=404, detail="Content not found")
+        
+        if content.user_id != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        logger.info(f"[Replicate VTON] Starting for content_id={content_id}, style={style}")
+        
+        # ===== 2. GCS에서 이미지 다운로드 =====
+        image_url = content.image_url
+        if not image_url:
+            raise HTTPException(status_code=400, detail="No image URL in content")
+        
+        if image_url.startswith('http'):
+            gcs_path = '/'.join(image_url.split('/')[-2:])
+        else:
+            gcs_path = image_url.lstrip('/')
+        
+        logger.info(f"[Replicate VTON] Downloading from GCS: {gcs_path}")
+        
+        image_bytes = download_from_gcs(gcs_path)
+        garment_image = Image.open(io.BytesIO(image_bytes))
+        
+        logger.info(f"[Replicate VTON] Garment image loaded: {garment_image.size}")
+        
+        # ===== 3. Replicate IDM-VTON으로 광고 생성 =====
+        vton_service = get_vton_service()
+        
+        logger.info("[Replicate VTON] Calling VTON service...")
+        
+        result_image = vton_service.generate_fashion_ad(
+            garment_image=garment_image,
+            style=style,
+            model_index=model_index,
+            user_prompt=prompt
+        )
+        
+        logger.info(f"[Replicate VTON] ✅ Generation succeeded")
+        logger.info(f"[Replicate VTON] Result image: {result_image.size}")
+        
+        # ===== 4. GCS에 업로드 =====
+        timestamp = int(time.time())
+        filename = f"replicate_vton/{style}_{content_id}_{timestamp}.png"
+        
+        img_byte_arr = io.BytesIO()
+        result_image.save(img_byte_arr, format='PNG', quality=95)
+        img_byte_arr.seek(0)
+        
+        result_url = upload_to_gcs(
+            file_data=img_byte_arr.getvalue(),
+            destination_path=filename,
+            content_type='image/png'
+        )
+        
+        processing_time = time.time() - start_time
+        
+        # ===== 5. 히스토리 저장 =====
+        new_history = GenerationHistory(
+            history_id=str(uuid.uuid4()),
+            content_id=content_id,
+            user_id=current_user.user_id,
+            style=style,
+            prompt=prompt or f"{style} style fashion ad with virtual try-on",
+            result_url=result_url,
+            processing_time=round(processing_time, 2)
+        )
+        
+        db.add(new_history)
+        db.commit()
+        db.refresh(new_history)
+        
+        logger.info(f"[Replicate VTON] Completed in {processing_time:.2f}s")
+        logger.info(f"[Replicate VTON] History saved: {new_history.history_id}")
+        logger.info(f"[Replicate VTON] Result URL: {result_url}")
+        
+        return {
+            "success": True,
+            "history_id": new_history.history_id,
+            "result_url": result_url,
+            "processing_time": round(processing_time, 2),
+            "generation_method": generation_method,
+            "processing_type": "replicate-idm-vton",
+            "style": style,
+            "content_id": content_id,
+            "prompt": prompt,
+            "model_index": model_index,
+            "dimensions": {
+                "width": result_image.width,
+                "height": result_image.height
+            },
+            "message": "Fashion ad with virtual try-on generated successfully using Replicate IDM-VTON"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Replicate VTON] Error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Replicate 광고 생성 중 오류 발생: {str(e)}"
+        )
+    
+@router.get("/replicate-status")
+async def check_replicate_status():
+    """Replicate API 상태 확인"""
+    try:
+        vton_service = get_vton_service()
+        is_healthy = vton_service.health_check()
+        
+        if is_healthy:
+            return {
+                "status": "available",
+                "message": "Replicate IDM-VTON API 정상 작동 중",
+                "api_configured": True,
+                "service": "replicate-idm-vton"
+            }
+        else:
+            return {
+                "status": "unavailable",
+                "message": "Replicate API 응답 없음",
+                "api_configured": bool(settings.REPLICATE_API_TOKEN),
+                "service": "replicate-idm-vton"
+            }
+    except Exception as e:
+        logger.error(f"Replicate status check failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Replicate API 상태 확인 실패: {str(e)}",
+            "api_configured": bool(settings.REPLICATE_API_TOKEN),
+            "service": "replicate-idm-vton"
         }

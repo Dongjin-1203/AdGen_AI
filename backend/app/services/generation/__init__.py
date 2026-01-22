@@ -1,12 +1,7 @@
 """
 AI 배경 생성 모듈
-
-GPU 서버 직접 호출 방식으로 변경됨
-HybridGenerator와 ReplicateGenerator는 deprecated
 """
+from .vton_replicate_generator import ReplicateVTONService, get_vton_service
 
-# GPU 서버 직접 호출 방식으로 변경
-# contents.py에서 httpx를 통해 직접 호출
-
-__all__ = []
+__all__ = ['ReplicateVTONService', 'get_vton_service']
 __version__ = "3.0.0"
