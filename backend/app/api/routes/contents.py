@@ -540,3 +540,34 @@ async def generate_background(
         style=request.style,
         processing_time=processing_time
     )
+
+@router.delete("/{content_id}")
+async def delete_content(
+    content_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    콘텐츠 삭제
+    """
+    # 본인 콘텐츠 확인
+    content = db.query(UserContent).filter(
+        UserContent.content_id == content_id,
+        UserContent.user_id == current_user.user_id
+    ).first()
+    
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Content not found"
+        )
+    
+    # 삭제
+    db.delete(content)
+    db.commit()
+    
+    return {
+        "success": True,
+        "content_id": content_id,
+        "message": "Content deleted successfully"
+    }
