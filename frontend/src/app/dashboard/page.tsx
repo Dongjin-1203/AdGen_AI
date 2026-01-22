@@ -143,7 +143,7 @@ export default function DashboardPage() {
 
       // ✅ Gemini API 엔드포인트 호출
       const response = await fetch(
-        `${API_URL}/api/v1/generate-ad-gemini`,
+        `${API_URL}/api/v1/generate-ad-replicate`,
         {
           method: 'POST',
           headers: {
