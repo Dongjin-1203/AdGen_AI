@@ -118,7 +118,7 @@ logger.info("✅ 정적 파일 제공: /static")
 app.include_router(auth.router)
 app.include_router(contents.router)
 app.include_router(image.router, prefix="/api/v1", tags=["Image Processing"])
-app.include_router(ai_generate.router, prefix="/api/v1/ai", tags=["AI Generation"])  # ← 활성화
+app.include_router(ai_generate.router, prefix="/api/v1", tags=["AI Generation"])  # ← 활성화
 app.include_router(history.router)
 
 logger.info("✅ 라우터 등록 완료: auth, contents, image, ai_generate, history")
