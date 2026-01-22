@@ -18,18 +18,21 @@ logger = logging.getLogger(__name__)
 class ReplicateVTONService:
     """Replicate IDM-VTON을 사용한 광고 생성"""
     
+    # GCS 버킷 이름 (fallback 포함)
+    BUCKET_NAME = settings.GCS_BUCKET_NAME or "adgen-ai-storage"
+    
     # K-Fashion 모델 이미지 URL (스타일별 10개씩)
     K_FASHION_MODELS = {
         'resort': [
-            f"https://storage.googleapis.com/{settings.GCS_BUCKET_NAME}/k-fashion-models/resort/resort_{i:02d}.jpg"
+            f"https://storage.googleapis.com/{BUCKET_NAME}/k-fashion-models/resort/resort_{i:02d}.jpg"
             for i in range(10)
         ],
         'retro': [
-            f"https://storage.googleapis.com/{settings.GCS_BUCKET_NAME}/k-fashion-models/retro/retro_{i:02d}.jpg"
+            f"https://storage.googleapis.com/{BUCKET_NAME}/k-fashion-models/retro/retro_{i:02d}.jpg"
             for i in range(10)
         ],
         'romantic': [
-            f"https://storage.googleapis.com/{settings.GCS_BUCKET_NAME}/k-fashion-models/romantic/romantic_{i:02d}.jpg"
+            f"https://storage.googleapis.com/{BUCKET_NAME}/k-fashion-models/romantic/romantic_{i:02d}.jpg"
             for i in range(10)
         ]
     }
