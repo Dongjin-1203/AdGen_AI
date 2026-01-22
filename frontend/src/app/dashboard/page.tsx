@@ -129,44 +129,49 @@ export default function DashboardPage() {
     setIsLoading(true);
 
     try {
-      // ✅ JSON 형식으로 요청 데이터 준비
-      const requestBody = {
-        prompt: userPrompt || `${selectedStyle} style background`, // 프롬프트가 없으면 기본값
-        style: selectedStyle,
-        aspect_ratio: 'square', // 또는 'portrait', 'landscape'
-        num_inference_steps: 30,
-      };
+      // ✅ FormData 형식으로 요청 (VTON 통합 엔드포인트용)
+      const formData = new FormData();
+      formData.append('content_id', selectedContent.content_id);
+      formData.append('style', selectedStyle);
+      formData.append('aspect_ratio', 'square');
+      formData.append('num_inference_steps', '30');
+      
+      // 선택적 파라미터
+      if (userPrompt) {
+        formData.append('prompt', userPrompt);
+      }
 
-      console.log('🎨 AI 생성 시작:', requestBody);
-      console.log('🔗 엔드포인트:', `${API_URL}/api/contents/${selectedContent.content_id}/generate-background`);
+      console.log('🎨 Fashion Ad 생성 시작');
+      console.log('📦 Content ID:', selectedContent.content_id);
+      console.log('🎭 Style:', selectedStyle);
 
-      // ✅ 올바른 엔드포인트 호출
+      // ✅ VTON 통합 엔드포인트 호출
       const response = await fetch(
-        `${API_URL}/api/contents/${selectedContent.content_id}/generate-background`,
+        `${API_URL}/api/v1/fashion-ad`,
         {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json', // ✅ JSON 헤더 추가
             'Authorization': `Bearer ${token}`,
+            // FormData 사용 시 Content-Type 헤더는 자동 설정됨
           },
-          body: JSON.stringify(requestBody), // ✅ JSON으로 변환
+          body: formData,
         }
       );
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ 생성 완료:', data);
-        console.log('✅ 사용된 모드:', data.mode); // local or replicate
+        console.log('✅ Fashion Ad 생성 완료:', data);
+        console.log('🎉 처리 방식:', data.processing_type); // idm-vton+sdxl
         
         setGeneratedResult(data.result_url);
-        alert(`✅ 생성 완료! (${data.processing_time.toFixed(2)}초)\n모드: ${data.mode}`);
+        alert(`✅ 패션 광고 생성 완료! 🎉\n⏱️ ${data.processing_time.toFixed(2)}초 소요\n🔧 처리: ${data.processing_type || 'IDM-VTON+SDXL'}`);
       } else {
         const errorData = await response.json();
         console.error('❌ 에러 응답:', errorData);
-        throw new Error(errorData.detail || 'Generation failed');
+        throw new Error(errorData.detail || 'Fashion ad generation failed');
       }
     } catch (error) {
-      console.error('❌ Generate error:', error);
+      console.error('❌ Fashion Ad 생성 실패:', error);
       alert('❌ 생성 실패: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     } finally {
       setIsLoading(false);
