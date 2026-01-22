@@ -18,14 +18,21 @@ logger = logging.getLogger(__name__)
 class ReplicateVTONService:
     """Replicate IDM-VTON을 사용한 광고 생성"""
     
-    # K-Fashion 모델 이미지 URL 리스트 (30개)
-    # TODO: 실제 GCS 경로로 교체
-    K_FASHION_MODELS = [
-        # 기본 모델 URL들 (임시)
-        # 실제로는 GCS에 업로드된 k-fashion 모델 이미지 경로
-        f"https://storage.googleapis.com/{settings.GCS_BUCKET_NAME}/k-fashion-models/model_{i:02d}.jpg"
-        for i in range(30)
-    ]
+    # K-Fashion 모델 이미지 URL (스타일별 10개씩)
+    K_FASHION_MODELS = {
+        'resort': [
+            f"https://storage.googleapis.com/{settings.GCS_BUCKET_NAME}/k-fashion-models/resort/resort_{i:02d}.jpg"
+            for i in range(10)
+        ],
+        'retro': [
+            f"https://storage.googleapis.com/{settings.GCS_BUCKET_NAME}/k-fashion-models/retro/retro_{i:02d}.jpg"
+            for i in range(10)
+        ],
+        'romantic': [
+            f"https://storage.googleapis.com/{settings.GCS_BUCKET_NAME}/k-fashion-models/romantic/romantic_{i:02d}.jpg"
+            for i in range(10)
+        ]
+    }
     
     def __init__(self):
         """Replicate 클라이언트 초기화"""
@@ -48,7 +55,7 @@ class ReplicateVTONService:
         Args:
             garment_image: 의류 이미지 (PIL Image)
             style: 스타일 (resort/retro/romantic)
-            model_index: K-Fashion 모델 인덱스 (0-29, None이면 랜덤)
+            model_index: K-Fashion 모델 인덱스 (0-9, None이면 랜덤)
             user_prompt: 추가 요청사항 (현재 미사용)
         
         Returns:
@@ -64,12 +71,9 @@ class ReplicateVTONService:
             garment_image.save(garment_bytes, format='PNG')
             garment_bytes.seek(0)
             
-            # 2. K-Fashion 모델 선택
-            if model_index is None:
-                model_index = random.randint(0, len(self.K_FASHION_MODELS) - 1)
-            
-            model_image_url = self._get_model_image(model_index)
-            logger.info(f"   Selected model: {model_index}")
+            # 2. K-Fashion 모델 선택 (스타일별)
+            model_image_url = self._get_model_image(style, model_index)
+            logger.info(f"   Selected model URL: {model_image_url}")
             
             # 3. Replicate IDM-VTON API 호출
             logger.info("[VTON] Calling Replicate API...")
@@ -113,23 +117,33 @@ class ReplicateVTONService:
             logger.error(f"❌ Replicate VTON failed: {e}", exc_info=True)
             raise Exception(f"Replicate 가상 피팅 실패: {str(e)}")
     
-    def _get_model_image(self, model_index: int) -> str:
+    def _get_model_image(self, style: str, model_index: Optional[int] = None) -> str:
         """
-        K-Fashion 모델 이미지 가져오기
+        스타일에 맞는 K-Fashion 모델 이미지 가져오기
         
-        TODO: 실제로는 GCS에서 모델 이미지 로드
-        지금은 임시로 기본 이미지 사용
+        Args:
+            style: 'resort', 'retro', 'romantic'
+            model_index: 0-9 사이의 인덱스 (None이면 랜덤)
+        
+        Returns:
+            GCS 모델 이미지 URL
         """
-        # 범위 체크
-        if model_index < 0 or model_index >= len(self.K_FASHION_MODELS):
-            model_index = 0
+        # 스타일 검증
+        if style not in self.K_FASHION_MODELS:
+            logger.warning(f"Unknown style '{style}', defaulting to 'resort'")
+            style = 'resort'
         
-        # GCS URL 반환
-        model_url = self.K_FASHION_MODELS[model_index]
+        models = self.K_FASHION_MODELS[style]
         
-        # TODO: GCS 인증이 필요한 경우 signed URL 생성
-        # from app.core.storage import generate_signed_url
-        # return generate_signed_url(model_url)
+        # 인덱스 처리
+        if model_index is None:
+            model_index = random.randint(0, len(models) - 1)
+        else:
+            model_index = model_index % len(models)  # 0-9 범위로 제한
+        
+        model_url = models[model_index]
+        
+        logger.info(f"   Selected {style} model #{model_index}: {model_url}")
         
         return model_url
     
