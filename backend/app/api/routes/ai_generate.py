@@ -20,6 +20,7 @@ from app.api.routes.auth import get_current_user
 from app.services.gpu_client import GPUServerClient
 from app.core.storage import download_from_gcs, upload_to_gcs
 from config import settings
+from app.services.generation.gemini_generator import GeminiImageGenerator
 
 logger = logging.getLogger(__name__)
 
@@ -491,4 +492,178 @@ async def get_fashion_ad_styles():
                 "luxury": "romantic"
             },
             "message": "Using fallback style list (GPU server unavailable)"
+        }
+    
+# ===== Gemini 클라이언트 (싱글톤) =====
+gemini_generator = None
+
+def get_gemini_generator() -> GeminiImageGenerator:
+    """Gemini 생성기 가져오기"""
+    global gemini_generator
+    
+    if not settings.GOOGLE_MODEL_API_KEY:
+        raise RuntimeError("GOOGLE_MODEL_API_KEY not configured")
+    
+    if gemini_generator is not None:
+        return gemini_generator
+    
+    try:
+        logger.info("Initializing GeminiImageGenerator...")
+        gemini_generator = GeminiImageGenerator()
+        logger.info("✅ GeminiImageGenerator initialized")
+        return gemini_generator
+    except Exception as e:
+        logger.error(f"Failed to initialize Gemini generator: {e}")
+        raise RuntimeError(f"Gemini 생성기 초기화 실패: {e}")
+
+
+@router.post("/generate-ad-gemini")
+async def generate_ad_with_gemini(
+    content_id: str = Form(..., description="업로드된 콘텐츠 ID"),
+    style: str = Form(default="resort", description="스타일 (resort/retro/romantic)"),
+    prompt: Optional[str] = Form(None, description="사용자 추가 요청"), 
+    current_user: User = Depends(get_current_user),  
+    db: Session = Depends(get_db)
+):
+    """
+    Gemini API로 AI 광고 생성 (GPU 서버 불필요)
+    
+    워크플로우:
+    1. 콘텐츠 이미지 로드 (GCS)
+    2. Gemini API로 광고 이미지 생성
+    3. 결과 이미지 GCS 업로드
+    4. DB에 히스토리 저장
+    """
+    start_time = time.time()
+    generation_method = "gemini-api"
+    
+    try:
+        # ===== 1. 콘텐츠 조회 및 권한 확인 =====
+        content = db.query(UserContent).filter(UserContent.content_id == content_id).first()
+        if not content:
+            raise HTTPException(status_code=404, detail="Content not found")
+        
+        if content.user_id != current_user.user_id:
+            raise HTTPException(status_code=403, detail="Not authorized")
+        
+        logger.info(f"[Gemini Ad] Starting for content_id={content_id}, style={style}")
+        
+        # ===== 2. GCS에서 이미지 다운로드 =====
+        image_url = content.image_url
+        if not image_url:
+            raise HTTPException(status_code=400, detail="No image URL in content")
+        
+        if image_url.startswith('http'):
+            gcs_path = '/'.join(image_url.split('/')[-2:])
+        else:
+            gcs_path = image_url.lstrip('/')
+        
+        logger.info(f"[Gemini Ad] Downloading from GCS: {gcs_path}")
+        
+        image_bytes = download_from_gcs(gcs_path)
+        product_image = Image.open(io.BytesIO(image_bytes))
+        
+        logger.info(f"[Gemini Ad] Image loaded: {product_image.size}")
+        
+        # ===== 3. Gemini API로 광고 이미지 생성 =====
+        generator = get_gemini_generator()
+        
+        logger.info("[Gemini Ad] Requesting image generation from Gemini API...")
+        
+        result_image = generator.generate_fashion_ad(
+            product_image=product_image,
+            style=style,
+            user_prompt=prompt
+        )
+        
+        logger.info(f"[Gemini Ad] ✅ Gemini generation succeeded")
+        logger.info(f"[Gemini Ad] Result image: {result_image.size}")
+        
+        # ===== 4. GCS에 업로드 =====
+        timestamp = int(time.time())
+        filename = f"gemini_ads/{style}_{content_id}_{timestamp}.png"
+        
+        img_byte_arr = io.BytesIO()
+        result_image.save(img_byte_arr, format='PNG', quality=95)
+        img_byte_arr.seek(0)
+        
+        result_url = upload_to_gcs(
+            file_data=img_byte_arr.getvalue(),
+            destination_path=filename,
+            content_type='image/png'
+        )
+        
+        processing_time = time.time() - start_time
+        
+        # ===== 5. 히스토리 저장 ===== 
+        new_history = GenerationHistory(
+            history_id=str(uuid.uuid4()),
+            content_id=content_id,
+            user_id=current_user.user_id, 
+            style=style,
+            prompt=prompt or f"{style} style fashion advertisement",
+            result_url=result_url,
+            processing_time=round(processing_time, 2)
+        )
+        
+        db.add(new_history)
+        db.commit()
+        db.refresh(new_history)
+        
+        logger.info(f"[Gemini Ad] Completed in {processing_time:.2f}s (via {generation_method})")
+        logger.info(f"[Gemini Ad] History saved: {new_history.history_id}")
+        logger.info(f"[Gemini Ad] Result URL: {result_url}")
+        
+        return {
+            "success": True,
+            "history_id": new_history.history_id,  
+            "result_url": result_url,
+            "processing_time": round(processing_time, 2),
+            "generation_method": generation_method,
+            "processing_type": "gemini-image-generation",
+            "style": style,
+            "content_id": content_id,
+            "prompt": prompt,
+            "dimensions": {
+                "width": result_image.width,
+                "height": result_image.height
+            },
+            "message": "Fashion ad generated successfully with Gemini API"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Gemini Ad] Error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Gemini 광고 생성 중 오류 발생: {str(e)}"
+        )
+
+
+@router.get("/gemini-status")
+async def check_gemini_status():
+    """Gemini API 상태 확인"""
+    try:
+        generator = get_gemini_generator()
+        is_healthy = await generator.health_check()
+        
+        if is_healthy:
+            return {
+                "status": "available",
+                "message": "Gemini API 정상 작동 중",
+                "api_configured": True
+            }
+        else:
+            return {
+                "status": "unavailable",
+                "message": "Gemini API 응답 없음",
+                "api_configured": True
+            }
+    except Exception as e:
+        logger.error(f"Gemini status check failed: {e}")
+        return {
+            "status": "error",
+            "message": f"Gemini API 상태 확인 실패: {str(e)}",
+            "api_configured": bool(settings.GOOGLE_MODEL_API_KEY)
         }

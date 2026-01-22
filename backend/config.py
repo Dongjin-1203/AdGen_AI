@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # ===== Google Gemini API ===== 
     GOOGLE_API_KEY: Optional[str] = None
     
+    # ===== Google Gemini Image Generation API =====
+    GOOGLE_MODEL_API_KEY: Optional[str] = None  # ← 추가된 부분
+    
     # ===== GPU Server (Background Generation) =====
     GPU_SERVER_URL: str = "http://34.59.198.57:8001"
     GPU_SERVER_TIMEOUT: int = 120  # 초 단위

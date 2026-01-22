@@ -129,30 +129,25 @@ export default function DashboardPage() {
     setIsLoading(true);
 
     try {
-      // ✅ FormData 형식으로 요청 (VTON 통합 엔드포인트용)
       const formData = new FormData();
       formData.append('content_id', selectedContent.content_id);
       formData.append('style', selectedStyle);
-      formData.append('aspect_ratio', 'square');
-      formData.append('num_inference_steps', '30');
       
-      // 선택적 파라미터
       if (userPrompt) {
         formData.append('prompt', userPrompt);
       }
 
-      console.log('🎨 Fashion Ad 생성 시작');
+      console.log('🎨 Gemini AI 생성 시작');
       console.log('📦 Content ID:', selectedContent.content_id);
       console.log('🎭 Style:', selectedStyle);
 
-      // ✅ VTON 통합 엔드포인트 호출
+      // ✅ Gemini API 엔드포인트 호출
       const response = await fetch(
-        `${API_URL}/api/v1/fashion-ad`,
+        `${API_URL}/api/v1/generate-ad-gemini`,
         {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`,
-            // FormData 사용 시 Content-Type 헤더는 자동 설정됨
           },
           body: formData,
         }
@@ -160,18 +155,18 @@ export default function DashboardPage() {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('✅ Fashion Ad 생성 완료:', data);
-        console.log('🎉 처리 방식:', data.processing_type); // idm-vton+sdxl
+        console.log('✅ Gemini 생성 완료:', data);
+        console.log('🎉 처리 방식:', data.processing_type);
         
         setGeneratedResult(data.result_url);
-        alert(`✅ 패션 광고 생성 완료! 🎉\n⏱️ ${data.processing_time.toFixed(2)}초 소요\n🔧 처리: ${data.processing_type || 'IDM-VTON+SDXL'}`);
+        alert(`✅ AI 광고 생성 완료! 🎉\n⏱️ ${data.processing_time.toFixed(2)}초 소요\n🤖 Gemini API 사용`);
       } else {
         const errorData = await response.json();
         console.error('❌ 에러 응답:', errorData);
-        throw new Error(errorData.detail || 'Fashion ad generation failed');
+        throw new Error(errorData.detail || 'Gemini generation failed');
       }
     } catch (error) {
-      console.error('❌ Fashion Ad 생성 실패:', error);
+      console.error('❌ 생성 실패:', error);
       alert('❌ 생성 실패: ' + (error instanceof Error ? error.message : '알 수 없는 오류'));
     } finally {
       setIsLoading(false);
