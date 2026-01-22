@@ -18,32 +18,35 @@ logger = logging.getLogger(__name__)
 class ReplicateVTONService:
     """Replicate IDM-VTON을 사용한 광고 생성"""
     
-    # GCS 버킷 이름 (fallback 포함)
-    BUCKET_NAME = settings.GCS_BUCKET_NAME or "adgen-ai-storage"
-    
-    # K-Fashion 모델 이미지 URL (스타일별 10개씩)
-    K_FASHION_MODELS = {
-        'resort': [
-            f"https://storage.googleapis.com/{BUCKET_NAME}/k-fashion-models/resort/resort_{i:02d}.jpg"
-            for i in range(10)
-        ],
-        'retro': [
-            f"https://storage.googleapis.com/{BUCKET_NAME}/k-fashion-models/retro/retro_{i:02d}.jpg"
-            for i in range(10)
-        ],
-        'romantic': [
-            f"https://storage.googleapis.com/{BUCKET_NAME}/k-fashion-models/romantic/romantic_{i:02d}.jpg"
-            for i in range(10)
-        ]
-    }
-    
     def __init__(self):
         """Replicate 클라이언트 초기화"""
         if not settings.REPLICATE_API_TOKEN:
             raise ValueError("REPLICATE_API_TOKEN not found in settings")
         
         self.api_token = settings.REPLICATE_API_TOKEN
+        
+        # GCS 버킷 이름 (fallback 포함)
+        bucket_name = settings.GCS_BUCKET_NAME or "adgen-ai-storage"
+        
+        # K-Fashion 모델 이미지 URL (스타일별 10개씩)
+        self.K_FASHION_MODELS = {
+            'resort': [
+                f"https://storage.googleapis.com/{bucket_name}/k-fashion-models/resort/resort_{i:02d}.jpg"
+                for i in range(10)
+            ],
+            'retro': [
+                f"https://storage.googleapis.com/{bucket_name}/k-fashion-models/retro/retro_{i:02d}.jpg"
+                for i in range(10)
+            ],
+            'romantic': [
+                f"https://storage.googleapis.com/{bucket_name}/k-fashion-models/romantic/romantic_{i:02d}.jpg"
+                for i in range(10)
+            ]
+        }
+        
         logger.info("✅ Replicate VTON Service initialized")
+        logger.info(f"   Bucket: {bucket_name}")
+        logger.info(f"   Models loaded: {sum(len(v) for v in self.K_FASHION_MODELS.values())} images")
     
     def generate_fashion_ad(
         self,
