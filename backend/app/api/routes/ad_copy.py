@@ -11,8 +11,8 @@ import json
 from app.db.base import get_db
 from app.models.schemas import UserContent
 from app.models.reward_system import AIPrediction
-from app.services.ad_generator import AdGenerator
-from app.auth import get_current_user
+from app.services.html.ad_generator import AdGenerator
+from app.api.routes.auth import get_current_user
 
 router = APIRouter(tags=["광고 카피 생성"])
 
