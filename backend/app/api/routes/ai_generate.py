@@ -29,50 +29,44 @@ logger = logging.getLogger(__name__)
 STYLE_PROMPTS = {
     'resort': {
         'positive': (
-            "professional resort fashion photography, commercial shoot, "
-            "bright beach atmosphere, tropical vibes, vacation style, "
-            "natural sunlight, ocean background, sandy beach, palm trees, "
-            "safe for work, relaxed elegant mood, summer fashion, "
-            "8k quality, clean composition, travel magazine style, "
-            "professional commercial advertisement"
+                "k-fashion resort look, professional vacation photography, "
+                "luxury resort background, tropical plants, soft sunlight, "
+                "beige and sand tones, linen texture, airy atmosphere, "
+                "ocean breeze, relaxed high-end vibe, 8k uhd, "
+                "commercial fashion editorial"
         ),
         'negative': (
-            "nsfw, inappropriate content, adult content, nudity, "
-            "dark, gloomy, winter, urban, city, indoor, "
-            "cluttered, messy, low quality, grainy, blurry, "
-            "amateur, unprofessional, distorted"
+                "nsfw, inappropriate content, adult content, nudity, "
+                "cold, urban, concrete, dark, heavy, winter, "
+                "crowded, messy, low quality, amateur"
         )
     },
     'retro': {
         'positive': (
-            "professional retro fashion photography, commercial shoot, "
-            "vintage aesthetic, 70s 80s style, nostalgic atmosphere, "
-            "film camera quality, analog colors, classic poses, "
-            "safe for work, retro color grading, timeless fashion, "
-            "8k quality, vintage vibe, editorial style, "
-            "professional commercial advertisement"
+                "k-fashion newtro style, professional retro photography, "
+                "90s aesthetic, vintage film grain, warm earthy tones, "
+                "nostalgic atmosphere, classic patterns, dots and checks, "
+                "analogue photography vibe, trendy vintage, 8k quality, "
+                "commercial fashion editorial"
         ),
         'negative': (
-            "nsfw, inappropriate content, adult content, nudity, "
-            "modern, futuristic, neon, digital, overly saturated, "
-            "low quality, grainy, distorted, blurry, "
-            "amateur, unprofessional, contemporary"
+                "nsfw, inappropriate content, adult content, nudity, "
+                "futuristic, cyberpunk, neon, cold, digital, "
+                "too modern, minimal, sterile, low quality"
         )
     },
     'romantic': {
         'positive': (
-            "professional romantic fashion photography, commercial shoot, "
-            "soft feminine aesthetic, dreamy atmosphere, pastel colors, "
-            "flowing fabrics, gentle lighting, floral elements, "
-            "safe for work, elegant mood, graceful poses, "
-            "8k quality, delicate composition, ethereal style, "
-            "professional commercial advertisement"
+                "k-fashion romantic style, professional fashion photography, "
+                "soft pastel colors, floral garden background, dreamy lighting, "
+                "feminine atmosphere, elegant, lace and ruffles vibe, "
+                "spring season, lovely, 8k uhd, "
+                "commercial fashion editorial"
         ),
         'negative': (
-            "nsfw, inappropriate content, adult content, nudity, "
-            "harsh, aggressive, dark, masculine, street style, "
-            "low quality, grainy, distorted, blurry, "
-            "amateur, unprofessional, rough"
+                "nsfw, inappropriate content, adult content, nudity, "
+                "dark, edgy, gothic, industrial, sharp, aggressive, "
+                "strong contrast, horror, low quality"
         )
     }
 }

@@ -16,13 +16,22 @@ sys.path.append(str(Path(__file__).parent.parent))
 # 우리 모델 import
 from config import settings
 from app.db.base import Base
-from app.models.schemas import User
+# 모든 모델 import (Alembic autogenerate를 위해 필요)
+from app.models import (
+    User, Shop, Product, UserContent, GenerationHistory,
+    AIPrediction, UserCorrection, RewardScore
+)
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-# .env에서 DB URL 로드
-config.set_main_option("sqlalchemy.url", settings.CLOUD_SQL_URL)
+
+# ===== DATABASE_URL 로드 및 % 이스케이프 =====
+db_url = settings.CLOUD_SQL_URL
+# ConfigParser는 % 기호를 interpolation 구문으로 해석하므로 %% 로 변환
+if db_url:
+    db_url_escaped = db_url.replace('%', '%%')
+    config.set_main_option("sqlalchemy.url", db_url_escaped)
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.

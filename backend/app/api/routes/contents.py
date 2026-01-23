@@ -1,8 +1,9 @@
 """
-콘텐츠 API 라우터
-/api/contents/upload - 이미지 업로드
+콘텐츠 API 라우터 (보상 기반 학습 시스템 통합)
+/api/contents/upload - 이미지 업로드 + AI 예측 저장
 /api/contents - 콘텐츠 목록
 /api/contents/{id} - 콘텐츠 상세
+/api/contents/{id} (PATCH) - 콘텐츠 수정 + 보상 점수 계산
 /api/contents/{id}/generate-background - 배경 생성
 """
 
@@ -24,11 +25,12 @@ import httpx
 
 from app.db.base import get_db
 from app.models.schemas import UserContent, User
+# 보상 기반 학습 모델 추가
+from app.models.reward_system import AIPrediction, UserCorrection, RewardScore
 from app.schemas.content import ContentResponse, GenerateBackgroundRequest, GenerateBackgroundResponse
 from app.api.routes.auth import get_current_user
 from config import settings
 from app.services.vision.product_analyzer import ProductAnalyzer
-# from app.services.generation import HybridGenerator  # GPU 서버 사용으로 비활성화
 from app.services.img_processing.background_removal import BackgroundRemovalService
 
 router = APIRouter(prefix="/api/contents", tags=["Contents"])
@@ -66,16 +68,7 @@ def get_gcs_bucket():
 
 
 # ===== AI Services (Lazy Initialization) =====
-# _background_generator = None  # GPU 서버 사용으로 비활성화
 _background_remover = None
-
-# def get_background_generator():
-#     """배경 생성기 가져오기 (Lazy Initialization)"""
-#     global _background_generator
-#     if _background_generator is None:
-#         _background_generator = HybridGenerator()
-#         print(f"✅ Background Generator initialized: {_background_generator.get_mode()}")
-#     return _background_generator
 
 def get_background_remover():
     """배경 제거 서비스 가져오기"""
@@ -86,7 +79,7 @@ def get_background_remover():
     return _background_remover
 
 
-# ===== 기존 엔드포인트 (업로드, 목록, 상세, 수정) =====
+# ===== 업로드 엔드포인트 (보상 기반 학습 통합) =====
 
 @router.post("/upload", response_model=ContentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_content(
@@ -98,7 +91,14 @@ async def upload_content(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """이미지 업로드 및 콘텐츠 생성 (GCS 저장 + Vision AI)"""
+    """
+    이미지 업로드 및 콘텐츠 생성 (GCS 저장 + Vision AI + AI 예측 저장)
+    
+    ⭐ 보상 기반 학습 시스템 통합:
+    1. Vision AI 분석
+    2. AIPrediction 저장 (AI 초기 예측)
+    3. UserContent 저장 (예측 결과 포함)
+    """
     
     bucket = get_gcs_bucket()
     
@@ -194,7 +194,7 @@ async def upload_content(
                 'color': vision_result.get('color'),
                 'material': vision_result.get('material'),
                 'fit': vision_result.get('fit'),
-                'style_tags': json.dumps(vision_result.get('style_tags', []), ensure_ascii=False),
+                'style_tags': vision_result.get('style_tags', []),  # List 유지
                 'ai_confidence': vision_result.get('confidence')
             }
             print(f"✅ Vision AI 분석 완료: {vision_data['category']}, {vision_data['color']}")
@@ -206,28 +206,51 @@ async def upload_content(
         import traceback
         traceback.print_exc()
     
-    # 확인용 로그 출력
-    print(f"\n📝 DB 저장 직전 vision_data:")
-    print(f"vision_data = {vision_data}")
-    print(f"type = {type(vision_data)}")
-    print(f"len = {len(vision_data)}")
-    print(f"keys = {vision_data.keys() if vision_data else 'None'}")
+    # ===== 4. ⭐ AIPrediction 저장 (보상 기반 학습) =====
+    prediction_id = None
+    
+    if vision_data:
+        try:
+            ai_prediction = AIPrediction(
+                prediction_id=str(uuid.uuid4()),
+                predicted_category=vision_data.get('category'),
+                predicted_sub_category=vision_data.get('sub_category'),
+                predicted_material=vision_data.get('material'),
+                predicted_fit=vision_data.get('fit'),
+                predicted_color=vision_data.get('color'),
+                predicted_style_tags=vision_data.get('style_tags'),  # JSON 자동 변환
+                prediction_confidence=vision_data.get('ai_confidence')
+            )
+            
+            db.add(ai_prediction)
+            db.flush()  # prediction_id 생성
+            
+            prediction_id = ai_prediction.prediction_id
+            
+            print(f"✅ AIPrediction 저장 완료: {prediction_id}")
+            
+        except Exception as e:
+            print(f"⚠️ AIPrediction 저장 실패: {e}")
+            import traceback
+            traceback.print_exc()
 
-    # ===== 4. DB 저장 =====
+    # ===== 5. DB 저장 (UserContent) =====
     bucket_name = settings.GCS_BUCKET_NAME or "adgen-uploads-2026"
     image_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
     thumbnail_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_thumb_path}"
     
+    content_id = str(uuid.uuid4())
+    
     # UserContent 객체 생성
     new_content = UserContent(
-        content_id=str(uuid.uuid4()),
+        content_id=content_id,
         user_id=current_user.user_id,
         image_url=image_url,
         thumbnail_url=thumbnail_url,
         
         # 기본 정보 (수동 입력 우선)
         product_name=product_name,
-        category=category or vision_data.get('category'),  # Vision AI 결과 활용
+        category=category or vision_data.get('category'),
         color=color or vision_data.get('color'),
         price=price,
         
@@ -235,7 +258,7 @@ async def upload_content(
         sub_category=vision_data.get('sub_category'),
         material=vision_data.get('material'),
         fit=vision_data.get('fit'),
-        style_tags=vision_data.get('style_tags'),
+        style_tags=json.dumps(vision_data.get('style_tags', []), ensure_ascii=False) if vision_data.get('style_tags') else None,
         ai_confidence=vision_data.get('ai_confidence'),
         confirmed=False,  # 사용자 확인 필요
         
@@ -246,6 +269,15 @@ async def upload_content(
     )
     
     db.add(new_content)
+    
+    # ⭐ AIPrediction에 content_id 연결
+    if prediction_id:
+        ai_prediction = db.query(AIPrediction).filter(
+            AIPrediction.prediction_id == prediction_id
+        ).first()
+        if ai_prediction:
+            ai_prediction.content_id = content_id
+    
     db.commit()
     db.refresh(new_content)
     
@@ -253,6 +285,8 @@ async def upload_content(
     
     return new_content
 
+
+# ===== 콘텐츠 목록 조회 =====
 
 @router.get("", response_model=List[ContentResponse])
 async def get_my_contents(
@@ -295,6 +329,9 @@ async def get_content(
     
     return content
 
+
+# ===== 콘텐츠 수정 (보상 기반 학습 통합) =====
+
 @router.patch("/{content_id}")
 async def update_content(
     content_id: str,
@@ -312,8 +349,15 @@ async def update_content(
 ):
     """
     콘텐츠 정보 수정 (Vision AI 결과 확인/수정 후)
+    
+    ⭐ 보상 기반 학습 시스템 통합:
+    1. 6개 필드 비교 (category, sub_category, material, fit, color, style_tags)
+    2. 수정된 필드 UserCorrection에 저장
+    3. 보상 점수 계산 (6 - 수정 개수)
+    4. RewardScore에 저장
     """
-    # 본인 콘텐츠 확인
+    
+    # ===== 1. 본인 콘텐츠 확인 =====
     content = db.query(UserContent).filter(
         UserContent.content_id == content_id,
         UserContent.user_id == current_user.user_id
@@ -322,7 +366,48 @@ async def update_content(
     if not content:
         raise HTTPException(status_code=404, detail="Content not found")
     
-    # 수정
+    # ===== 2. 원본 AI 예측 조회 =====
+    prediction = db.query(AIPrediction).filter(
+        AIPrediction.content_id == content_id
+    ).first()
+    
+    if not prediction:
+        print(f"⚠️ No prediction found for content {content_id}, skipping reward calculation")
+    
+    # ===== 3. 6개 필드 비교 및 수정 기록 =====
+    corrections = []
+    
+    if prediction:
+        # 필드 매핑 (Form 입력 → DB 필드 → AI 예측 필드)
+        field_mapping = [
+            ('category', category, content.category, prediction.predicted_category),
+            ('sub_category', sub_category, content.sub_category, prediction.predicted_sub_category),
+            ('material', material, content.material, prediction.predicted_material),
+            ('fit', fit, content.fit, prediction.predicted_fit),
+            ('color', color, content.color, prediction.predicted_color),
+            ('style_tags', style_tags, content.style_tags, json.dumps(prediction.predicted_style_tags, ensure_ascii=False) if prediction.predicted_style_tags else None)
+        ]
+        
+        for field_name, new_value, current_value, predicted_value in field_mapping:
+            # 새 값이 입력되었고, 현재 값과 다른 경우
+            if new_value is not None and str(new_value) != str(current_value):
+                # UserCorrection 생성
+                correction = UserCorrection(
+                    correction_id=str(uuid.uuid4()),
+                    content_id=content_id,
+                    prediction_id=prediction.prediction_id,
+                    user_id=current_user.user_id,
+                    field_name=field_name,
+                    original_value=str(predicted_value) if predicted_value else None,
+                    corrected_value=str(new_value)
+                )
+                
+                corrections.append(correction)
+                db.add(correction)
+                
+                print(f"✏️ Correction: {field_name} = '{predicted_value}' → '{new_value}'")
+    
+    # ===== 4. 콘텐츠 업데이트 =====
     if product_name is not None:
         content.product_name = product_name
     if category is not None:
@@ -343,17 +428,118 @@ async def update_content(
     # 확인 완료 처리
     content.confirmed = confirmed
     
+    # ===== 5. ⭐ 보상 점수 계산 및 저장 =====
+    if prediction and corrections:
+        corrected_fields_count = len(corrections)
+        reward_score_value = 6 - corrected_fields_count
+        
+        reward_score = RewardScore(
+            score_id=str(uuid.uuid4()),
+            content_id=content_id,
+            prediction_id=prediction.prediction_id,
+            total_fields=6,
+            corrected_fields=corrected_fields_count,
+            reward_score=reward_score_value,
+            used_for_training=False
+        )
+        
+        db.add(reward_score)
+        
+        print(f"🎯 Reward Score: {reward_score_value} (corrected {corrected_fields_count}/6 fields)")
+    
     db.commit()
     db.refresh(content)
     
-    return {
+    # ===== 6. 응답 =====
+    response = {
         "success": True,
         "content_id": content.content_id,
         "message": "Content updated successfully"
     }
+    
+    # 보상 정보 추가
+    if prediction and corrections:
+        response["reward_info"] = {
+            "corrected_fields": corrected_fields_count,
+            "reward_score": reward_score_value,
+            "corrections": [
+                {
+                    "field": c.field_name,
+                    "from": c.original_value,
+                    "to": c.corrected_value
+                }
+                for c in corrections
+            ]
+        }
+    
+    return response
 
 
-# ===== 신규: 배경 생성 엔드포인트 =====
+# ===== 통계 API (보상 기반 학습) =====
+
+@router.get("/stats/rewards")
+async def get_reward_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    보상 기반 학습 통계
+    
+    Returns:
+        - 총 예측 수
+        - 총 수정 수
+        - 평균 보상 점수
+        - 필드별 오류 빈도
+    """
+    from sqlalchemy import func
+    
+    # 총 예측 수
+    total_predictions = db.query(func.count(AIPrediction.prediction_id))\
+        .join(UserContent, AIPrediction.content_id == UserContent.content_id)\
+        .filter(UserContent.user_id == current_user.user_id)\
+        .scalar()
+    
+    # 총 수정 수
+    total_corrections = db.query(func.count(UserCorrection.correction_id))\
+        .filter(UserCorrection.user_id == current_user.user_id)\
+        .scalar()
+    
+    # 평균 보상 점수
+    avg_reward_score = db.query(func.avg(RewardScore.reward_score))\
+        .join(UserContent, RewardScore.content_id == UserContent.content_id)\
+        .filter(UserContent.user_id == current_user.user_id)\
+        .scalar()
+    
+    # 필드별 오류 빈도
+    field_errors = db.query(
+        UserCorrection.field_name,
+        func.count(UserCorrection.correction_id).label('count')
+    ).filter(
+        UserCorrection.user_id == current_user.user_id
+    ).group_by(
+        UserCorrection.field_name
+    ).order_by(
+        func.count(UserCorrection.correction_id).desc()
+    ).all()
+    
+    return {
+        "total_predictions": total_predictions or 0,
+        "total_corrections": total_corrections or 0,
+        "average_reward_score": round(float(avg_reward_score), 2) if avg_reward_score else 6.0,
+        "field_errors": [
+            {
+                "field": field_name,
+                "error_count": count
+            }
+            for field_name, count in field_errors
+        ],
+        "accuracy": {
+            "overall": round((1 - (total_corrections / (total_predictions * 6))) * 100, 2) if total_predictions else 100.0
+        }
+    }
+
+
+# ===== 배경 생성 엔드포인트 (기존 유지) =====
 
 @router.post("/{content_id}/generate-background", response_model=GenerateBackgroundResponse)
 async def generate_background(
@@ -414,7 +600,6 @@ async def generate_background(
         print(f"🖼️ Removing background...")
         bg_remover = get_background_remover()
         
-        # ✅ PIL Image를 직접 전달 (bytes 변환 불필요)
         removed_bg_image = await bg_remover.remove_background(original_image)
         
         print(f"✅ Background removed: {removed_bg_image.size}, mode: {removed_bg_image.mode}")
@@ -540,6 +725,7 @@ async def generate_background(
         style=request.style,
         processing_time=processing_time
     )
+
 
 @router.delete("/{content_id}")
 async def delete_content(
