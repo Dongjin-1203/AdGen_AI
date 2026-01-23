@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     
     # ===== Google Gemini Image Generation API =====
     GOOGLE_MODEL_API_KEY: Optional[str] = None  # ← 추가된 부분
+
+    # ===== OpenAI API =====
+    OPENAI_API_KEY: Optional[str] = None
     
     # ===== GPU Server (Background Generation) =====
     GPU_SERVER_URL: str = "http://34.59.198.57:8001"

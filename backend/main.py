@@ -14,7 +14,8 @@ from config import settings
 from app.api.routes import auth, contents
 from app.api.routes import processing as image
 from app.api.routes import history
-from app.api.routes import ai_generate  # ← 주석 해제
+from app.api.routes import ai_generate
+from app.api.routes import ad_copy
 
 # ===== 로깅 설정 =====
 logging.basicConfig(
@@ -120,6 +121,7 @@ app.include_router(contents.router)
 app.include_router(image.router, prefix="/api/v1", tags=["Image Processing"])
 app.include_router(ai_generate.router, prefix="/api/v1", tags=["AI Generation"])  # ← 활성화
 app.include_router(history.router)
+app.include_router(ad_copy.router, prefix="/api/v1", tags=["Ad Copy"])
 
 logger.info("✅ 라우터 등록 완료: auth, contents, image, ai_generate, history")
 
@@ -157,7 +159,15 @@ async def root():
                     "health": "/api/v1/health"
                 },
                 "ai_generation": {  # ← 추가
-                    "generate_ad": "/api/v1/generate-ad"
+                    "generate_ad": "/api/v1/generate-ad",
+                    "fashion_ad": "/api/v1/fashion-ad",
+                    "generate_ad_gemini": "/api/v1/generate-ad-gemini",
+                    "generate_ad_replicate": "/api/v1/generate-ad-replicate"
+                },
+                "ad_copy_generation": {  # ← 추가!
+                    "ad_copy": "/api/v1/ad-copy",
+                    "templates": "/api/v1/templates",
+                    "test": "/api/v1/test-ad-copy"
                 },
                 "docs": "/docs",
                 "health": "/health"
