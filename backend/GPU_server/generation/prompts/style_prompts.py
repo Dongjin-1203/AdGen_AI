@@ -10,6 +10,10 @@ class StylePrompts:
     EMOTIONAL = "emotional"
     STREET = "street"
     INSTAGRAM = "instagram"
+    # K-Fashion Styles
+    RESORT = "resort"
+    RETRO = "retro"
+    ROMANTIC = "romantic"
 
     PROMPTS: Dict[str, Dict[str, str]] = {
         MINIMAL: {
@@ -71,6 +75,48 @@ class StylePrompts:
                 "bad composition, oversaturated, blurry, "
                 "amateur, unprofessional"
             )
+        },
+        RESORT: {
+            "positive": (
+                "k-fashion resort look, professional vacation photography, "
+                "luxury resort background, tropical plants, soft sunlight, "
+                "beige and sand tones, linen texture, airy atmosphere, "
+                "ocean breeze, relaxed high-end vibe, 8k uhd, "
+                "commercial fashion editorial"
+            ),
+            "negative": (
+                "nsfw, inappropriate content, adult content, nudity, "
+                "cold, urban, concrete, dark, heavy, winter, "
+                "crowded, messy, low quality, amateur"
+            )
+        },
+        RETRO: {
+            "positive": (
+                "k-fashion newtro style, professional retro photography, "
+                "90s aesthetic, vintage film grain, warm earthy tones, "
+                "nostalgic atmosphere, classic patterns, dots and checks, "
+                "analogue photography vibe, trendy vintage, 8k quality, "
+                "commercial fashion editorial"
+            ),
+            "negative": (
+                "nsfw, inappropriate content, adult content, nudity, "
+                "futuristic, cyberpunk, neon, cold, digital, "
+                "too modern, minimal, sterile, low quality"
+            )
+        },
+        ROMANTIC: {
+            "positive": (
+                "k-fashion romantic style, professional fashion photography, "
+                "soft pastel colors, floral garden background, dreamy lighting, "
+                "feminine atmosphere, elegant, lace and ruffles vibe, "
+                "spring season, lovely, 8k uhd, "
+                "commercial fashion editorial"
+            ),
+            "negative": (
+                "nsfw, inappropriate content, adult content, nudity, "
+                "dark, edgy, gothic, industrial, sharp, aggressive, "
+                "strong contrast, horror, low quality"
+            )
         }
     }
 
@@ -114,4 +160,7 @@ class StylePrompts:
     @classmethod
     def get_all_styles(cls) -> list:
         """사용 가능한 모든 스타일 목록"""
-        return [cls.MINIMAL, cls.EMOTIONAL, cls.STREET, cls.INSTAGRAM]
+        return [
+            cls.MINIMAL, cls.EMOTIONAL, cls.STREET, cls.INSTAGRAM,
+            cls.RESORT, cls.RETRO, cls.ROMANTIC
+        ]
