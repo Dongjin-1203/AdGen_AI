@@ -30,3 +30,4 @@ opencv-python-headless==4.9.0.80
 scikit-image==0.22.0
 numpy==1.26.4
 openai==2.15.0
+playwright==1.57.0

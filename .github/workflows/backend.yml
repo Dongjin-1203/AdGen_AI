@@ -65,8 +65,9 @@ jobs:
             --set-env-vars "GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}" \
             --set-env-vars "GOOGLE_MODEL_API_KEY=${{ secrets.GOOGLE_MODEL_API_KEY }}" \
             --set-env-vars "REPLICATE_API_TOKEN=${{ secrets.REPLICATE_API_TOKEN }}" \
+            --set-env-vars "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" \
             --add-cloudsql-instances "${{ secrets.CLOUD_SQL_CONNECTION_NAME }}" \
-            --memory 1Gi \
+            --memory 2Gi \
             --timeout 300s \
             --max-instances 10 \
             --min-instances 0
