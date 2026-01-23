@@ -25,7 +25,7 @@ import httpx
 
 from app.db.base import get_db
 from app.models.schemas import UserContent, User
-# 보상 기반 학습 모델 추가
+# ⭐ 보상 기반 학습 모델 추가
 from app.models.reward_system import AIPrediction, UserCorrection, RewardScore
 from app.schemas.content import ContentResponse, GenerateBackgroundRequest, GenerateBackgroundResponse
 from app.api.routes.auth import get_current_user
@@ -206,35 +206,7 @@ async def upload_content(
         import traceback
         traceback.print_exc()
     
-    # ===== 4. ⭐ AIPrediction 저장 (보상 기반 학습) =====
-    prediction_id = None
-    
-    if vision_data:
-        try:
-            ai_prediction = AIPrediction(
-                prediction_id=str(uuid.uuid4()),
-                predicted_category=vision_data.get('category'),
-                predicted_sub_category=vision_data.get('sub_category'),
-                predicted_material=vision_data.get('material'),
-                predicted_fit=vision_data.get('fit'),
-                predicted_color=vision_data.get('color'),
-                predicted_style_tags=vision_data.get('style_tags'),  # JSON 자동 변환
-                prediction_confidence=vision_data.get('ai_confidence')
-            )
-            
-            db.add(ai_prediction)
-            db.flush()  # prediction_id 생성
-            
-            prediction_id = ai_prediction.prediction_id
-            
-            print(f"✅ AIPrediction 저장 완료: {prediction_id}")
-            
-        except Exception as e:
-            print(f"⚠️ AIPrediction 저장 실패: {e}")
-            import traceback
-            traceback.print_exc()
-
-    # ===== 5. DB 저장 (UserContent) =====
+    # ===== 4. DB 저장 (UserContent 먼저 저장) =====
     bucket_name = settings.GCS_BUCKET_NAME or "adgen-uploads-2026"
     image_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_path}"
     thumbnail_url = f"https://storage.googleapis.com/{bucket_name}/{gcs_thumb_path}"
@@ -269,19 +241,36 @@ async def upload_content(
     )
     
     db.add(new_content)
-    
-    # ⭐ AIPrediction에 content_id 연결
-    if prediction_id:
-        ai_prediction = db.query(AIPrediction).filter(
-            AIPrediction.prediction_id == prediction_id
-        ).first()
-        if ai_prediction:
-            ai_prediction.content_id = content_id
-    
-    db.commit()
-    db.refresh(new_content)
+    db.flush()  # content_id 생성 완료
     
     print(f"✅ Content saved: {new_content.content_id}")
+    
+    # ===== 5. ⭐ AIPrediction 저장 (보상 기반 학습) =====
+    if vision_data:
+        try:
+            ai_prediction = AIPrediction(
+                prediction_id=str(uuid.uuid4()),
+                content_id=content_id,  # ⭐ content_id 포함
+                predicted_category=vision_data.get('category'),
+                predicted_sub_category=vision_data.get('sub_category'),
+                predicted_material=vision_data.get('material'),
+                predicted_fit=vision_data.get('fit'),
+                predicted_color=vision_data.get('color'),
+                predicted_style_tags=vision_data.get('style_tags'),  # JSON 자동 변환
+                prediction_confidence=vision_data.get('ai_confidence')
+            )
+            
+            db.add(ai_prediction)
+            print(f"✅ AIPrediction 저장 완료: {ai_prediction.prediction_id}")
+            
+        except Exception as e:
+            print(f"⚠️ AIPrediction 저장 실패: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    # ===== 6. 최종 커밋 =====
+    db.commit()
+    db.refresh(new_content)
     
     return new_content
 
