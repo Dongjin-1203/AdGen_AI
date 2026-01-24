@@ -54,12 +54,16 @@ class RenderImageResponse(BaseModel):
 
 async def render_html_to_png(html_content: str, width: int = 1080, height: int = 1080) -> bytes:
     """
-    HTML을 PNG 이미지로 변환
+    HTML을 PNG 이미지로 변환 (전체 페이지 캡처)
+    
+    ✨ 변경 사항:
+    - 실제 컨텐츠 높이를 계산하여 전체 캡처
+    - full_page=True로 스크롤 영역까지 포함
     
     Args:
         html_content: HTML 문자열
         width: 이미지 너비 (기본 1080px)
-        height: 이미지 높이 (기본 1080px)
+        height: 초기 viewport 높이 (실제 높이는 자동 계산)
     
     Returns:
         PNG 이미지 바이트
@@ -77,26 +81,56 @@ async def render_html_to_png(html_content: str, width: int = 1080, height: int =
             ]
         )
         
-        # 새 페이지 생성
+        # ✨ 충분히 큰 viewport로 페이지 생성
         page = await browser.new_page(
-            viewport={"width": width, "height": height},
-            device_scale_factor=2  # ✨ 고해상도 (Retina)
+            viewport={"width": width, "height": 3000},  # 넉넉한 높이
+            device_scale_factor=2  # 고해상도 (Retina)
         )
         
         # HTML 로드
         await page.set_content(html_content, wait_until='networkidle')
         
-        # 폰트 로딩 대기 (500ms)
+        # 폰트 로딩 및 렌더링 완료 대기
         await page.wait_for_timeout(500)
         
-        # PNG 스크린샷
+        # ✨ 실제 컨텐츠 높이 계산
+        actual_height = await page.evaluate('''
+            () => {
+                const body = document.body;
+                const html = document.documentElement;
+                
+                // 모든 가능한 높이 중 최대값 사용
+                return Math.max(
+                    body.scrollHeight,
+                    body.offsetHeight,
+                    html.clientHeight,
+                    html.scrollHeight,
+                    html.offsetHeight
+                );
+            }
+        ''')
+        
+        print(f"📏 실제 컨텐츠 높이: {actual_height}px")
+        
+        # ✨ 실제 높이에 맞춰 viewport 조정
+        await page.set_viewport_size({
+            "width": width,
+            "height": max(actual_height, height)  # 최소 height 보장
+        })
+        
+        # 추가 안정화 대기
+        await page.wait_for_timeout(200)
+        
+        # ✨ PNG 스크린샷 (전체 페이지)
         screenshot_bytes = await page.screenshot(
             type="png",
-            full_page=False,
+            full_page=True,  # ⭐ 전체 페이지 캡처!
             omit_background=False
         )
         
         await browser.close()
+        
+        print(f"✅ 스크린샷 생성 완료: {len(screenshot_bytes)} bytes")
         
         return screenshot_bytes
 
@@ -152,8 +186,10 @@ async def render_ad_copy_to_image(
     """
     저장된 광고를 PNG 이미지로 렌더링
     
-    ✨ Playwright로 HTML → PNG 변환
-    - 1080x1080 해상도 (2x Retina)
+    ✨ Playwright로 HTML → PNG 변환 (전체 페이지)
+    - 실제 컨텐츠 높이 자동 계산
+    - 1080px 너비 유지, 높이는 자동 조정
+    - 2x Retina 해상도
     - GCS에 저장
     - AdCopyHistory.final_image_url 업데이트
     
@@ -199,9 +235,9 @@ async def render_ad_copy_to_image(
             detail="HTML 내용이 없습니다."
         )
     
-    # 3. HTML → PNG 변환
+    # 3. HTML → PNG 변환 (전체 페이지)
     try:
-        print(f"🎨 Playwright로 렌더링 중...")
+        print(f"🎨 Playwright로 렌더링 중 (전체 페이지)...")
         image_bytes = await render_html_to_png(html_content, 1080, 1080)
         print(f"✅ 렌더링 완료: {len(image_bytes)} bytes")
     except Exception as e:
@@ -266,7 +302,7 @@ async def render_html_direct(
     start_time = time.time()
     
     try:
-        # HTML → PNG
+        # HTML → PNG (전체 페이지)
         image_bytes = await render_html_to_png(html_content, 1080, 1080)
         
         # Base64 인코딩
@@ -345,7 +381,7 @@ async def test_playwright(
         
         start_time = time.time()
         
-        # 렌더링
+        # 렌더링 (전체 페이지)
         image_bytes = await render_html_to_png(test_html, 1080, 1080)
         
         # Base64 인코딩
