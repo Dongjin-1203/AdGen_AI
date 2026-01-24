@@ -123,7 +123,7 @@ app.include_router(ai_generate.router, prefix="/api/v1", tags=["AI Generation"])
 app.include_router(history.router)
 app.include_router(ad_copy.router, prefix="/api/v1", tags=["Ad Copy"])
 
-logger.info("✅ 라우터 등록 완료: auth, contents, image, ai_generate, history")
+logger.info("✅ 라우터 등록 완료: auth, contents, image, ai_generate, ad_copy, history")
 
 # ===== 루트 엔드포인트 =====
 @app.get("/")

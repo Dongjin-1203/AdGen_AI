@@ -1,5 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, Numeric, Text, Boolean, ForeignKey
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, String, Integer, DateTime, Numeric, Text, Boolean, ForeignKey, JSON
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 import uuid
@@ -77,12 +76,12 @@ class UserContent(Base):
     ai_confidence = Column(Numeric(3, 2), nullable=True)
     confirmed = Column(Boolean, default=False)
     
-    # AI 캡션 (추후)
+    # AI 캡션
     caption = Column(Text, nullable=True)
     
-    # ⭐ 광고 생성 필드 (Day 2 추가)
+    # 광고 생성 필드
     final_ad_url = Column(String(1000), nullable=True)      # 최종 광고 이미지 URL
-    ad_copy_data = Column(JSONB, nullable=True)             # 광고 카피 데이터
+    ad_copy_data = Column(JSON, nullable=True)             # 광고 카피 데이터
     
     # 메타데이터
     file_size = Column(Integer, nullable=True)
