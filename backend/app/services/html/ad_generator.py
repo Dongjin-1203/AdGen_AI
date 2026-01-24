@@ -19,7 +19,7 @@ class AdGenerator:
         """OpenAI 클라이언트 초기화"""
         self.client = OpenAI(
             api_key=os.getenv("OPENAI_API_KEY"),
-            timeout=30.0  # ✨ 30초 타임아웃 추가
+            timeout=30.0  # ✨ 30초 타임아웃
         )
         self.model = "gpt-4o"  # gpt-4o 유지
     
@@ -218,7 +218,17 @@ class AdGenerator:
                 messages=[
                     {
                         "role": "system",
-                        "content": "당신은 인스타그램 광고 전문 카피라이터입니다. 반드시 한글로 작성하고 JSON 형식으로만 응답합니다."
+                        "content": """당신은 인스타그램 광고 전문 카피라이터입니다.
+
+⚠️ CRITICAL - 인코딩 규칙:
+1. 반드시 UTF-8 인코딩으로 한글 작성
+2. 모든 텍스트는 순수 한글 문자만 사용
+3. 이스케이프 시퀀스나 특수 인코딩 사용 금지
+4. JSON 응답에서 한글이 깨지지 않도록 주의
+
+예시: "베이지의 따뜻함" (O), "string" (X)
+
+반드시 JSON 형식으로만 응답합니다."""
                     },
                     {
                         "role": "user",
@@ -233,7 +243,30 @@ class AdGenerator:
             
             # 4. 응답 파싱
             content = response.choices[0].message.content
+            
+            # ✨ UTF-8 인코딩 명시적 처리
+            if isinstance(content, bytes):
+                content = content.decode('utf-8')
+            
             ad_copy = json.loads(content)
+            
+            # ✨ 한글 인코딩 검증
+            headline = ad_copy.get('headline', '')
+            if headline:
+                # 한글이 제대로 있는지 확인
+                korean_chars = sum(1 for c in headline if ord(c) >= 0xAC00 and ord(c) <= 0xD7A3)
+                if korean_chars == 0:
+                    print(f"⚠️ 한글 인코딩 문제 감지: {headline}")
+                    # UTF-8로 재인코딩 시도
+                    try:
+                        headline_bytes = headline.encode('latin-1')
+                        headline = headline_bytes.decode('utf-8')
+                        ad_copy['headline'] = headline
+                        print(f"✅ 한글 인코딩 복구: {headline}")
+                    except:
+                        print(f"❌ 한글 인코딩 복구 실패")
+                else:
+                    print(f"✅ 한글 인코딩 정상: {headline} ({korean_chars}자)")
             
             # 5. ✨ 캡션이 제공된 경우 강제로 사용
             if caption:
@@ -323,7 +356,158 @@ class AdGenerator:
             'ad_copy': ad_copy,
             'template_used': template_name
         }
+    
+    def generate_html_with_template(
+        self,
+        vision_result: Dict,
+        image_url: str,
+        template_name: str,  # ✨ 템플릿 명시
+        caption: Optional[str] = None,
+        user_request: Optional[str] = None
+    ) -> Dict:
+        """
+        ✨ NEW: 특정 템플릿으로 광고 생성
+        
+        3개 템플릿 모두 생성할 때 사용
+        
+        Args:
+            vision_result: Vision AI 분석 결과
+            image_url: 생성된 모델 이미지 URL
+            template_name: 사용할 템플릿 (minimal, bold, vintage)
+            caption: 확정된 캡션
+            user_request: 사용자 추가 요청
+        
+        Returns:
+            {
+                'html': HTML 문자열,
+                'ad_copy': 광고 카피 dict,
+                'template_used': 템플릿 이름
+            }
+        """
+        
+        # 1. 템플릿 유효성 검사
+        if template_name not in AD_TEMPLATES:
+            raise ValueError(f"Invalid template: {template_name}")
+        
+        # 2. 해당 템플릿으로 광고 카피 생성
+        ad_copy = self.generate_ad_copy_for_template(
+            vision_result,
+            template_name,
+            caption,
+            user_request
+        )
+        
+        # 3. 템플릿 HTML 가져오기
+        template_html = AD_TEMPLATES[template_name]['html']
+        
+        # 4. 변수 치환
+        replacements = {
+            "{{IMAGE_URL}}": image_url,
+            "{{HEADLINE}}": ad_copy.get('headline', '특가 이벤트'),
+            "{{SUBTEXT}}": ad_copy.get('subtext', ''),
+            "{{DISCOUNT}}": ad_copy.get('discount', '50% OFF'),
+            "{{PERIOD}}": ad_copy.get('period', '한정 기간'),
+            "{{BRAND}}": ad_copy.get('brand', 'SALE'),
+            "{{EVENT_NAME}}": ad_copy.get('event_name', '특별 이벤트')
+        }
+        
+        html = template_html
+        for placeholder, value in replacements.items():
+            html = html.replace(placeholder, value)
+        
+        return {
+            'html': html,
+            'ad_copy': ad_copy,
+            'template_used': template_name
+        }
+    
+    def generate_ad_copy_for_template(
+        self,
+        vision_result: Dict,
+        template_name: str,  # ✨ 템플릿 고정
+        caption: Optional[str] = None,
+        user_request: Optional[str] = None
+    ) -> Dict:
+        """
+        ✨ NEW: 특정 템플릿에 맞는 광고 카피 생성
+        
+        Args:
+            vision_result: Vision AI 분석 결과
+            template_name: 사용할 템플릿
+            caption: 확정된 캡션
+            user_request: 사용자 추가 요청
+        
+        Returns:
+            광고 카피 dict
+        """
+        
+        # 프롬프트 생성 (템플릿 고정)
+        prompt = self._build_prompt(vision_result, template_name, caption, user_request)
+        
+        # GPT 호출
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": """당신은 인스타그램 광고 전문 카피라이터입니다.
 
+⚠️ CRITICAL - 인코딩 규칙:
+1. 반드시 UTF-8 인코딩으로 한글 작성
+2. 모든 텍스트는 순수 한글 문자만 사용
+3. 이스케이프 시퀀스나 특수 인코딩 사용 금지
+4. JSON 응답에서 한글이 깨지지 않도록 주의
+
+예시: "베이지의 따뜻함" (O), "string" (X)
+
+반드시 JSON 형식으로만 응답합니다."""
+                    },
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=500,
+                timeout=30.0,
+                response_format={"type": "json_object"}
+            )
+            
+            # 응답 파싱
+            content = response.choices[0].message.content
+            
+            # UTF-8 인코딩 명시적 처리
+            if isinstance(content, bytes):
+                content = content.decode('utf-8')
+            
+            ad_copy = json.loads(content)
+            
+            # 한글 인코딩 검증
+            headline = ad_copy.get('headline', '')
+            if headline:
+                korean_chars = sum(1 for c in headline if ord(c) >= 0xAC00 and ord(c) <= 0xD7A3)
+                if korean_chars == 0:
+                    print(f"⚠️ [{template_name}] 한글 인코딩 문제 감지: {headline}")
+                    try:
+                        headline_bytes = headline.encode('latin-1')
+                        headline = headline_bytes.decode('utf-8')
+                        ad_copy['headline'] = headline
+                        print(f"✅ [{template_name}] 한글 인코딩 복구: {headline}")
+                    except:
+                        print(f"❌ [{template_name}] 한글 인코딩 복구 실패")
+                else:
+                    print(f"✅ [{template_name}] 한글 인코딩 정상: {headline}")
+            
+            # 캡션이 제공된 경우 강제로 사용
+            if caption:
+                ad_copy['caption'] = caption
+            
+            # 템플릿 이름 추가
+            ad_copy['template_used'] = template_name
+            
+            return ad_copy
+            
+        except Exception as e:
+            print(f"❌ [{template_name}] GPT API Error: {e}")
+            return self._get_fallback_copy(vision_result, template_name, caption)
 
 # 테스트용
 if __name__ == "__main__":

@@ -18,6 +18,7 @@ from app.api.routes import ai_generate
 from app.api.routes import ad_copy
 from app.models import caption_system
 from app.api.routes import caption
+from app.api.routes import image_render
 
 # ===== 로깅 설정 =====
 logging.basicConfig(
@@ -126,6 +127,7 @@ app.include_router(ai_generate.router, prefix="/api/v1", tags=["AI Generation"])
 app.include_router(history.router)
 app.include_router(ad_copy.router, prefix="/api/v1", tags=["Ad Copy"])
 app.include_router(caption.router, prefix="/api/v1", tags=["Caption"])
+app.include_router(image_render.router, prefix="/api/v1", tags=["Image Render"])
 
 logger.info("✅ 라우터 등록 완료: auth, contents, image, ai_generate, caption, ad_copy, history")
 
@@ -179,6 +181,12 @@ async def root():
                     "get_ad_copy": "/api/v1/ad-copy/{id}",
                     "templates": "/api/v1/templates",
                     "test": "/api/v1/test-ad-copy"
+                },
+
+                "image_render": {
+                    "render_image": "/api/v1/render-image",
+                    "render_html_direct": "/api/v1/render-html-direct",
+                    "test_playwright": "/api/v1/test-playwright"
                 },
                 "docs": "/docs",
                 "health": "/health"

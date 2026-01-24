@@ -716,18 +716,27 @@ async def generate_background(
     )
 
 
-@router.delete("/{content_id}")
+@router.delete("/api/contents/{content_id}")
 async def delete_content(
     content_id: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
 ):
     """
     콘텐츠 삭제 (관련 데이터 모두 삭제)
     
-    ⭐ CASCADE 삭제 문제 해결: 수동 삭제 방식
+    삭제 순서:
+    1. AdCopyHistory (최종 광고)
+    2. CaptionCorrection (캡션 수정)
+    3. AdCaption (광고 캡션)
+    4. RewardScore (보상 점수)
+    5. UserCorrection (사용자 수정)
+    6. AIPrediction (AI 예측)
+    7. GenerationHistory (생성 히스토리)
+    8. UserContent (콘텐츠)
     """
-    # 1. 콘텐츠 조회
+    
+    # 1. 콘텐츠 조회 및 권한 확인
     content = db.query(UserContent).filter(
         UserContent.content_id == content_id,
         UserContent.user_id == current_user.user_id
@@ -735,20 +744,19 @@ async def delete_content(
     
     if not content:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Content not found"
+            status_code=404,
+            detail="콘텐츠를 찾을 수 없거나 접근 권한이 없습니다."
         )
     
     try:
-        # 2. 의존성 순서대로 삭제
-        from app.models.caption_system import AdCopyHistory, AdCaption, CaptionCorrection
-        
-        # AdCopyHistory 삭제
+        # 2. AdCopyHistory 삭제
+        from app.models.caption_system import AdCopyHistory
         db.query(AdCopyHistory).filter(
             AdCopyHistory.content_id == content_id
         ).delete(synchronize_session=False)
         
-        # CaptionCorrection 삭제
+        # 3. CaptionCorrection 삭제 (AdCaption을 통해)
+        from app.models.caption_system import AdCaption, CaptionCorrection
         caption_ids = [c.caption_id for c in db.query(AdCaption).filter(
             AdCaption.content_id == content_id
         ).all()]
@@ -758,45 +766,50 @@ async def delete_content(
                 CaptionCorrection.caption_id.in_(caption_ids)
             ).delete(synchronize_session=False)
         
-        # AdCaption 삭제
+        # 4. AdCaption 삭제
         db.query(AdCaption).filter(
             AdCaption.content_id == content_id
         ).delete(synchronize_session=False)
         
-        # RewardScore, UserCorrection, AIPrediction 삭제
+        # 5. RewardScore 삭제
+        from app.models.reward_system import RewardScore
         db.query(RewardScore).filter(
             RewardScore.content_id == content_id
         ).delete(synchronize_session=False)
         
+        # 6. UserCorrection 삭제
+        from app.models.reward_system import UserCorrection
         db.query(UserCorrection).filter(
             UserCorrection.content_id == content_id
         ).delete(synchronize_session=False)
         
+        # 7. AIPrediction 삭제
+        from app.models.reward_system import AIPrediction
         db.query(AIPrediction).filter(
             AIPrediction.content_id == content_id
         ).delete(synchronize_session=False)
         
-        # GenerationHistory 삭제
+        # 8. GenerationHistory 삭제
         from app.models.schemas import GenerationHistory
         db.query(GenerationHistory).filter(
             GenerationHistory.content_id == content_id
         ).delete(synchronize_session=False)
         
-        # UserContent 삭제
+        # 9. 마지막으로 UserContent 삭제
         db.delete(content)
         
-        # 커밋
+        # 10. 커밋
         db.commit()
         
         return {
             "success": True,
-            "content_id": content_id,
-            "message": "Content deleted successfully"
+            "message": "콘텐츠가 성공적으로 삭제되었습니다.",
+            "deleted_content_id": content_id
         }
         
     except Exception as e:
         db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete content: {str(e)}"
+            status_code=500,
+            detail=f"삭제 중 오류가 발생했습니다: {str(e)}"
         )
