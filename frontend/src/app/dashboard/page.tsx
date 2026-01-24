@@ -464,7 +464,7 @@ export default function DashboardPage() {
 
     setProgress(80);
 
-    // Step 6: Minimal 템플릿 생성
+    // Step 6: Minimal 템플릿 생성 + 저장
     addStep({
       id: 'ad-copy',
       title: '6️⃣ 광고 템플릿 생성',
@@ -480,7 +480,7 @@ export default function DashboardPage() {
     });
 
     try {
-      // Minimal 템플릿 생성
+      // ✨ Minimal 템플릿 생성 (바로 저장됨)
       const response = await fetch(`${API_URL}/api/v1/ad-copy`, {
         method: 'POST',
         headers: {
@@ -496,15 +496,10 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json();
         
-        // Minimal 템플릿만 추출
-        const minimalTemplate = data.templates.find((t: any) => t.template_name === 'minimal');
+        // ✨ 응답 구조 변경: ad_copy_id를 바로 받음
+        const adCopyId = data.ad_copy_id;
         
-        if (!minimalTemplate) {
-          throw new Error('Minimal 템플릿을 찾을 수 없습니다.');
-        }
-
-        setProgress(85);
-
+        setProgress(90);
         console.log(`✅ Minimal 템플릿 생성 완료 (${data.processing_time.toFixed(2)}초)`);
 
         // Step 6 완료
@@ -525,7 +520,7 @@ export default function DashboardPage() {
               <div className="border-2 border-purple-200 rounded-lg overflow-hidden">
                 <div className="aspect-square bg-gray-50">
                   <iframe
-                    srcDoc={minimalTemplate.html_preview}
+                    srcDoc={data.html_content}
                     className="w-full h-full pointer-events-none"
                     title="Minimal Clean"
                     sandbox="allow-same-origin"
@@ -539,19 +534,19 @@ export default function DashboardPage() {
                 <div className="grid grid-cols-2 gap-3 text-sm">
                   <div>
                     <span className="text-gray-500">헤드라인:</span>
-                    <p className="font-semibold text-gray-900">{minimalTemplate.ad_copy.headline}</p>
+                    <p className="font-semibold text-gray-900">{data.ad_copy.headline}</p>
                   </div>
                   <div>
                     <span className="text-gray-500">할인:</span>
-                    <p className="font-semibold text-red-600">{minimalTemplate.ad_copy.discount}</p>
+                    <p className="font-semibold text-red-600">{data.ad_copy.discount}</p>
                   </div>
                   <div>
                     <span className="text-gray-500">기간:</span>
-                    <p className="text-gray-700">{minimalTemplate.ad_copy.period}</p>
+                    <p className="text-gray-700">{data.ad_copy.period}</p>
                   </div>
                   <div>
                     <span className="text-gray-500">브랜드:</span>
-                    <p className="text-gray-800">{minimalTemplate.ad_copy.brand}</p>
+                    <p className="text-gray-800">{data.ad_copy.brand}</p>
                   </div>
                 </div>
               </div>
@@ -559,10 +554,8 @@ export default function DashboardPage() {
           ),
         });
 
-        // 자동으로 저장 및 PNG 생성
+        // ✨ /ad-copy/save 호출 제거 - 바로 PNG 생성으로 진행
         setTimeout(async () => {
-          setProgress(90);
-
           try {
             // Step 7: PNG 이미지 생성
             addStep({
@@ -579,27 +572,6 @@ export default function DashboardPage() {
               timestamp: new Date()
             });
 
-            // 템플릿 저장
-            const saveResponse = await fetch(`${API_URL}/api/v1/ad-copy/save`, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                caption_id: captionId,
-                template_name: 'minimal',
-                ad_copy_data: minimalTemplate.ad_copy,
-                html_content: minimalTemplate.html_preview
-              })
-            });
-
-            if (!saveResponse.ok) {
-              throw new Error('템플릿 저장 실패');
-            }
-
-            const { ad_copy_id } = await saveResponse.json();
-
             // PNG 이미지 생성
             const renderResponse = await fetch(`${API_URL}/api/v1/render-image`, {
               method: 'POST',
@@ -608,7 +580,7 @@ export default function DashboardPage() {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                ad_copy_id: ad_copy_id
+                ad_copy_id: adCopyId
               })
             });
 
@@ -638,7 +610,7 @@ export default function DashboardPage() {
                   content: (
                     <FinalImageResult
                       imageUrl={renderData.image_url}
-                      adCopyId={ad_copy_id}
+                      adCopyId={adCopyId}
                       onReset={handleReset}
                     />
                   ),

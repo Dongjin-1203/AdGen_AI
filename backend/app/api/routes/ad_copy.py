@@ -1,12 +1,12 @@
 """
-광고 카피 생성 API 엔드포인트 (3개 템플릿 모두 생성)
+광고 카피 생성 API 엔드포인트 (단일 템플릿 생성 + 즉시 저장)
 
-✨ NEW: 템플릿 3개(minimal, bold, vintage)를 모두 생성
+✨ 변경: Minimal 템플릿만 생성하고 DB에 즉시 저장
 """
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
-from typing import Optional, List, Dict
+from typing import Optional, Dict
 import json
 import uuid
 import time
@@ -29,78 +29,62 @@ class GenerateAdCopyRequest(BaseModel):
     user_request: Optional[str] = None
 
 
-class TemplateResult(BaseModel):
-    """개별 템플릿 결과"""
-    template_name: str
-    template_display_name: str
+class AdCopyResponse(BaseModel):
+    """단일 템플릿 응답"""
+    ad_copy_id: str
+    caption_id: str
+    content_id: str
+    generation_id: str
+    template_used: str
     ad_copy: Dict
-    html_preview: str
+    html_content: str
+    processing_time: float
     
     class Config:
         json_schema_extra = {
             "example": {
-                "template_name": "minimal",
-                "template_display_name": "Minimal Clean",
+                "ad_copy_id": "uuid-here",
+                "caption_id": "uuid-here",
+                "content_id": "uuid-here",
+                "generation_id": "uuid-here",
+                "template_used": "minimal",
                 "ad_copy": {
                     "headline": "베이지의 따뜻함",
                     "discount": "40% OFF",
                     "period": "11.01 - 11.08",
                     "brand": "FALL SPECIAL"
                 },
-                "html_preview": "<!DOCTYPE html>..."
-            }
-        }
-
-
-class AdCopyAllResponse(BaseModel):
-    """✨ NEW: 3개 템플릿 모두 응답"""
-    caption_id: str
-    content_id: str
-    generation_id: str
-    templates: List[TemplateResult]
-    total: int
-    processing_time: float
-    
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "caption_id": "uuid-here",
-                "content_id": "uuid-here",
-                "generation_id": "uuid-here",
-                "templates": [
-                    {"template_name": "minimal", "...": "..."},
-                    {"template_name": "bold", "...": "..."},
-                    {"template_name": "vintage", "...": "..."}
-                ],
-                "total": 3,
-                "processing_time": 4.5
+                "html_content": "<!DOCTYPE html>...",
+                "processing_time": 2.5
             }
         }
 
 
 # ========== API Endpoints ==========
 
-@router.post("/ad-copy", response_model=AdCopyAllResponse)
-async def generate_ad_copy_all_templates(
+@router.post("/ad-copy", response_model=AdCopyResponse)
+async def generate_ad_copy(
     request: GenerateAdCopyRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
     """
-    광고 카피 + HTML 생성 (3개 템플릿 모두)
+    광고 카피 + HTML 생성 (Minimal 템플릿 단일 생성 + 즉시 저장)
     
-    ✨ NEW: minimal, bold, vintage 템플릿 모두 생성
-    - 사용자가 선택할 수 있도록 3개 모두 반환
-    - 각 템플릿마다 HTML 미리보기 제공
-    - AdCopyHistory에는 아직 저장 안 함 (사용자 선택 후 저장)
+    워크플로우:
+    1. AdCaption 조회
+    2. Vision AI 결과 준비
+    3. Minimal 템플릿 생성
+    4. DB에 즉시 저장 (AdCopyHistory)
+    5. ad_copy_id 반환
     
-    **처리 시간:** ~4-6초 (GPT x 3)
+    **처리 시간:** ~2-3초
     """
     
     start_time = time.time()
     
     print(f"\n{'='*60}")
-    print(f"🎨 광고 카피 생성 시작 (3개 템플릿)")
+    print(f"🎨 광고 카피 생성 시작 (Minimal 템플릿)")
     print(f"{'='*60}")
     print(f"Caption ID: {request.caption_id}")
     
@@ -150,127 +134,68 @@ async def generate_ad_copy_all_templates(
         "style_tags": style_tags or []
     }
     
-    # 4. ✨ 3개 템플릿 모두 생성
+    # 4. ✨ Minimal 템플릿 생성
     generator = AdGenerator()
-    all_templates = []
+    template_name = "minimal"
     
-    template_names = ["minimal", "bold", "vintage"]
-    
-    for template_name in template_names:
-        try:
-            print(f"\n📝 {template_name} 템플릿 생성 중...")
-            
-            result = generator.generate_html_with_template(
-                vision_result=vision_result,
-                image_url=generated_image_url,
-                template_name=template_name,  # ✨ 템플릿 명시
-                caption=caption.final_caption,
-                user_request=request.user_request
-            )
-            
-            template_display_name = AD_TEMPLATES[template_name]['name']
-            
-            all_templates.append(TemplateResult(
-                template_name=template_name,
-                template_display_name=template_display_name,
-                ad_copy=result['ad_copy'],
-                html_preview=result['html']
-            ))
-            
-            print(f"✅ {template_name} 템플릿 생성 완료")
-            
-        except Exception as e:
-            print(f"⚠️ {template_name} 템플릿 생성 실패: {e}")
-            import traceback
-            traceback.print_exc()
-            continue
-    
-    if not all_templates:
+    try:
+        print(f"\n📝 {template_name} 템플릿 생성 중...")
+        
+        result = generator.generate_html_with_template(
+            vision_result=vision_result,
+            image_url=generated_image_url,
+            template_name=template_name,
+            caption=caption.final_caption,
+            user_request=request.user_request
+        )
+        
+        print(f"✅ {template_name} 템플릿 생성 완료")
+        
+    except Exception as e:
+        print(f"❌ 템플릿 생성 실패: {e}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=503,
-            detail="모든 템플릿 생성에 실패했습니다."
+            detail=f"템플릿 생성 실패: {str(e)}"
         )
     
-    # 5. 처리 시간 계산
-    processing_time = time.time() - start_time
-    print(f"\n⏱️  총 처리 시간: {processing_time:.2f}초")
-    print(f"📊 생성된 템플릿: {len(all_templates)}개")
-    print(f"{'='*60}\n")
-    
-    # 6. 응답 반환 (3개 모두)
-    return AdCopyAllResponse(
-        caption_id=request.caption_id,
-        content_id=caption.content_id,
-        generation_id=caption.generation_id,
-        templates=all_templates,
-        total=len(all_templates),
-        processing_time=processing_time
-    )
-
-
-@router.post("/ad-copy/save")
-async def save_selected_ad_copy(
-    caption_id: str,
-    template_name: str,
-    ad_copy_data: Dict,
-    html_content: str,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    ✨ NEW: 사용자가 선택한 템플릿을 AdCopyHistory에 저장
-    
-    사용자가 3개 템플릿 중 하나를 선택한 후 호출
-    
-    Args:
-        caption_id: 캡션 ID
-        template_name: 선택한 템플릿 이름
-        ad_copy_data: 광고 카피 데이터
-        html_content: HTML 내용
-    
-    Returns:
-        저장된 ad_copy_id
-    """
-    
-    # 1. AdCaption 조회
-    caption = db.query(AdCaption).filter(
-        AdCaption.caption_id == caption_id,
-        AdCaption.user_id == current_user.user_id
-    ).first()
-    
-    if not caption:
-        raise HTTPException(
-            status_code=404,
-            detail="캡션을 찾을 수 없습니다."
-        )
-    
-    # 2. AdCopyHistory 저장
+    # 5. ✨ DB에 즉시 저장
     ad_copy_id = str(uuid.uuid4())
     
     new_ad_copy = AdCopyHistory(
         ad_copy_id=ad_copy_id,
         content_id=caption.content_id,
         user_id=current_user.user_id,
-        caption_id=caption_id,
+        caption_id=request.caption_id,
         generation_id=caption.generation_id,
-        ad_copy_data=ad_copy_data,
+        ad_copy_data=result['ad_copy'],
         template_used=template_name,
-        html_content=html_content,
-        processing_time=0  # 이미 생성됨
+        html_content=result['html'],
+        processing_time=0
     )
     
     db.add(new_ad_copy)
     db.commit()
     db.refresh(new_ad_copy)
     
-    print(f"✅ AdCopyHistory 저장 완료: {ad_copy_id} ({template_name})")
+    processing_time = time.time() - start_time
     
-    return {
-        "success": True,
-        "ad_copy_id": ad_copy_id,
-        "template_used": template_name,
-        "message": "광고가 저장되었습니다."
-    }
+    print(f"✅ AdCopyHistory 저장 완료: {ad_copy_id} ({template_name})")
+    print(f"⏱️  총 처리 시간: {processing_time:.2f}초")
+    print(f"{'='*60}\n")
+    
+    # 6. 응답 반환
+    return AdCopyResponse(
+        ad_copy_id=ad_copy_id,
+        caption_id=request.caption_id,
+        content_id=caption.content_id,
+        generation_id=caption.generation_id,
+        template_used=template_name,
+        ad_copy=result['ad_copy'],
+        html_content=result['html'],
+        processing_time=processing_time
+    )
 
 
 @router.get("/ad-copy/{ad_copy_id}")
@@ -335,7 +260,7 @@ async def test_ad_copy_generation(
     """
     광고 카피 생성 테스트 (개발용)
     
-    실제 DB 없이 샘플 데이터로 3개 템플릿 테스트
+    실제 DB 없이 샘플 데이터로 Minimal 템플릿 테스트
     """
     
     # 샘플 데이터
@@ -351,33 +276,28 @@ async def test_ad_copy_generation(
     image_url = "https://via.placeholder.com/1080x1080"
     caption = "트렌디한 블랙 코트로 겨울 스타일 완성 🖤"
     
-    # 3개 템플릿 생성
+    # Minimal 템플릿 생성
     generator = AdGenerator()
-    results = []
+    template_name = "minimal"
     
-    for template_name in ["minimal", "bold", "vintage"]:
-        try:
-            result = generator.generate_html_with_template(
-                vision_result=vision_result,
-                image_url=image_url,
-                template_name=template_name,
-                caption=caption
-            )
-            
-            results.append({
-                "template_name": template_name,
-                "template_display_name": AD_TEMPLATES[template_name]['name'],
-                "ad_copy": result['ad_copy'],
-                "html_length": len(result['html'])
-            })
-        except Exception as e:
-            results.append({
-                "template_name": template_name,
-                "error": str(e)
-            })
-    
-    return {
-        "status": "success",
-        "templates": results,
-        "total": len(results)
-    }
+    try:
+        result = generator.generate_html_with_template(
+            vision_result=vision_result,
+            image_url=image_url,
+            template_name=template_name,
+            caption=caption
+        )
+        
+        return {
+            "status": "success",
+            "template_name": template_name,
+            "template_display_name": AD_TEMPLATES[template_name]['name'],
+            "ad_copy": result['ad_copy'],
+            "html_length": len(result['html'])
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "template_name": template_name,
+            "error": str(e)
+        }
