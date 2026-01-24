@@ -74,6 +74,7 @@ export default function DashboardPage() {
   // 템플릿 관련
   const [allTemplates, setAllTemplates] = useState<any[]>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const templatesRef = useRef<any[]>([]); 
 
   // ===== 초기화 =====
   useEffect(() => {
@@ -668,6 +669,7 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json();
         setAllTemplates(data.templates);
+        templatesRef.current = data.templates;
         setProgress(85);
 
         console.log(`✅ 템플릿 생성 완료: ${data.total}개 (${data.processing_time.toFixed(2)}초)`);
@@ -715,7 +717,7 @@ export default function DashboardPage() {
             status: 'processing',
             content: (
               <TemplateSelector
-                templates={data.templates}
+                templates={templatesRef.current}
                 selectedTemplate={selectedTemplate}
                 onSelect={handleSelectTemplate}
                 onSave={handleSaveTemplate}
@@ -757,7 +759,7 @@ export default function DashboardPage() {
       status: 'processing',
       content: (
         <TemplateSelector
-          templates={allTemplates}
+          templates={templatesRef.current}
           selectedTemplate={templateName}
           onSelect={handleSelectTemplate}
           onSave={handleSaveTemplate}
