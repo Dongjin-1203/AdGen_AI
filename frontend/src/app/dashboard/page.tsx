@@ -71,11 +71,6 @@ export default function DashboardPage() {
   const [finalImageUrl, setFinalImageUrl] = useState<string>('');
   const [isRendering, setIsRendering] = useState(false);
 
-  // 템플릿 관련
-  const [allTemplates, setAllTemplates] = useState<any[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  const templatesRef = useRef<any[]>([]); 
-
   // ===== 초기화 =====
   useEffect(() => {
     if (!token) {
@@ -296,192 +291,7 @@ export default function DashboardPage() {
     }
   };
 
-  // ===== 이미지 렌더링 함수 =====
-  const handleRenderImage = async (adCopyId: string) => {
-    setIsRendering(true);
-    
-    try {
-      const response = await fetch(`${API_URL}/api/v1/render-image`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          ad_copy_id: adCopyId
-        })
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setFinalImageUrl(data.image_url);
-        setProgress(100);
-        
-        console.log(`✅ 이미지 렌더링 완료: ${data.processing_time.toFixed(2)}초`);
-        
-        // Step 9 완료
-        updateStep('render-image', {
-          status: 'completed',
-          content: (
-            <div className="text-center py-2">
-              <p className="text-green-600">✅ 렌더링 완료 ({data.processing_time.toFixed(2)}초)</p>
-            </div>
-          ),
-        });
-
-        // Step 10: 최종 완료
-        setTimeout(() => {
-          addStep({
-            id: 'final',
-            title: '✅ 완료',
-            status: 'completed',
-            content: (
-              <FinalImageResult
-                imageUrl={data.image_url}
-                adCopyId={adCopyId}
-                onReset={handleReset}
-              />
-            ),
-            timestamp: new Date()
-          });
-        }, 500);
-        
-      } else {
-        throw new Error('Image rendering failed');
-      }
-      
-    } catch (error) {
-      console.error('Image rendering error:', error);
-      updateStep('render-image', {
-        status: 'error',
-        content: (
-          <div className="text-center py-8">
-            <p className="text-red-600 font-semibold mb-4">❌ 이미지 생성 실패</p>
-            <button
-              onClick={() => handleRenderImage(adCopyId)}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-            >
-              다시 시도
-            </button>
-          </div>
-        ),
-      });
-    } finally {
-      setIsRendering(false);
-    }
-  };
-
-  // ===== 템플릿 선택 후 이미지 렌더링 =====
-  const handleSaveTemplate = async () => {
-    // 디버깅 로그
-    console.log('=== 디버깅 시작 ===');
-    console.log('1. templatesRef.current:', templatesRef.current);
-    console.log('2. templatesRef.current 길이:', templatesRef.current.length);
-    console.log('3. selectedTemplate:', selectedTemplate);
-    console.log('4. allTemplates:', allTemplates);
-    console.log('5. allTemplates 길이:', allTemplates.length);
-    
-    // templatesRef가 비어있으면 allTemplates 사용 (임시)
-    const templatesSource = templatesRef.current.length > 0 
-      ? templatesRef.current 
-      : allTemplates;
-    
-    console.log('6. 사용할 템플릿 소스:', templatesSource);
-    const selected = allTemplates.find(t => t.template_name === selectedTemplate);
-
-    console.log('7. 찾은 템플릿:', selected);
-    console.log('===================');
-    
-    if (!selected) {
-      alert('템플릿을 선택해주세요.');
-      return;
-    }
-
-    setProgress(90);
-
-    // Step 7 완료
-    updateStep('template-select', {
-      status: 'completed',
-      content: (
-        <div className="text-center py-4">
-          <p className="text-green-600 font-semibold">
-            ✅ {selected.template_display_name} 템플릿 선택됨
-          </p>
-        </div>
-      ),
-    });
-
-    try {
-      // Step 8: 템플릿 저장
-      addStep({
-        id: 'save-template',
-        title: '8️⃣ 템플릿 저장 중...',
-        status: 'processing',
-        content: (
-          <div className="flex items-center justify-center py-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-          </div>
-        ),
-        timestamp: new Date()
-      });
-
-      const saveResponse = await fetch(`${API_URL}/api/v1/ad-copy/save`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          caption_id: captionId,
-          template_name: selectedTemplate,
-          ad_copy_data: selected.ad_copy,
-          html_content: selected.html_preview
-        })
-      });
-
-      if (saveResponse.ok) {
-        const { ad_copy_id } = await saveResponse.json();
-        
-        // Step 8 완료
-        updateStep('save-template', {
-          status: 'completed',
-          content: (
-            <div className="text-center py-2">
-              <p className="text-green-600 text-sm">✅ 저장 완료</p>
-            </div>
-          ),
-        });
-
-        // Step 9: 이미지 렌더링
-        setTimeout(() => {
-          addStep({
-            id: 'render-image',
-            title: '9️⃣ 이미지 렌더링',
-            status: 'processing',
-            content: (
-              <div className="flex flex-col items-center py-8">
-                <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mb-4"></div>
-                <p className="text-gray-600">PNG 이미지를 생성하고 있습니다...</p>
-                <p className="text-sm text-gray-500 mt-2">평균 2-3초 소요됩니다</p>
-              </div>
-            ),
-            timestamp: new Date()
-          });
-
-          handleRenderImage(ad_copy_id);
-        }, 500);
-
-      } else {
-        throw new Error('템플릿 저장 실패');
-      }
-
-    } catch (error) {
-      console.error('Save template error:', error);
-      alert('템플릿 저장에 실패했습니다.');
-    }
-  };
-
-  // ===== ⭐ Step 4: 캡션 생성 (NEW) =====
+  // ===== 캡션 생성 =====
   const handleGenerateCaption = async (historyId: string) => {
     if (!selectedContent) return;
 
@@ -654,23 +464,23 @@ export default function DashboardPage() {
 
     setProgress(80);
 
-    // Step 6 추가
+    // Step 6: Minimal 템플릿 생성
     addStep({
       id: 'ad-copy',
-      title: '6️⃣ 광고 템플릿 생성 (3개)',
+      title: '6️⃣ 광고 템플릿 생성',
       status: 'processing',
       content: (
         <div className="flex flex-col items-center py-8">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-purple-600 mb-4"></div>
-          <p className="text-gray-600">3개 템플릿을 생성하고 있습니다...</p>
-          <p className="text-sm text-gray-500 mt-2">평균 4-6초 소요됩니다</p>
+          <p className="text-gray-600">Minimal 템플릿을 생성하고 있습니다...</p>
+          <p className="text-sm text-gray-500 mt-2">평균 2-3초 소요됩니다</p>
         </div>
       ),
       timestamp: new Date()
     });
 
     try {
-      // ✨ 3개 템플릿 모두 생성
+      // Minimal 템플릿 생성
       const response = await fetch(`${API_URL}/api/v1/ad-copy`, {
         method: 'POST',
         headers: {
@@ -685,11 +495,17 @@ export default function DashboardPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setAllTemplates(data.templates);
-        templatesRef.current = data.templates;
+        
+        // Minimal 템플릿만 추출
+        const minimalTemplate = data.templates.find((t: any) => t.template_name === 'minimal');
+        
+        if (!minimalTemplate) {
+          throw new Error('Minimal 템플릿을 찾을 수 없습니다.');
+        }
+
         setProgress(85);
 
-        console.log(`✅ 템플릿 생성 완료: ${data.total}개 (${data.processing_time.toFixed(2)}초)`);
+        console.log(`✅ Minimal 템플릿 생성 완료 (${data.processing_time.toFixed(2)}초)`);
 
         // Step 6 완료
         updateStep('ad-copy', {
@@ -698,165 +514,159 @@ export default function DashboardPage() {
             <div className="space-y-4">
               <div className="text-center">
                 <p className="text-green-600 font-semibold mb-2">
-                  ✅ {data.total}개 템플릿 생성 완료
+                  ✅ Minimal 템플릿 생성 완료
                 </p>
                 <p className="text-sm text-gray-600">
                   ⏱️ 생성 시간: {data.processing_time.toFixed(2)}초
                 </p>
               </div>
               
-              {/* 템플릿 미리보기 그리드 */}
-              <div className="grid grid-cols-3 gap-4">
-                {data.templates.map((template: any) => (
-                  <div key={template.template_name} className="border rounded-lg p-3">
-                    <div className="aspect-square bg-gray-50 mb-2 overflow-hidden rounded">
-                      <iframe
-                        srcDoc={template.html_preview}
-                        className="w-full h-full pointer-events-none scale-50 origin-top-left"
-                        title={template.template_display_name}
-                        sandbox="allow-same-origin"
-                        style={{ width: '200%', height: '200%' }}
-                      />
-                    </div>
-                    <p className="text-center text-sm font-medium">{template.template_display_name}</p>
+              {/* Minimal 템플릿 미리보기 */}
+              <div className="border-2 border-purple-200 rounded-lg overflow-hidden">
+                <div className="aspect-square bg-gray-50">
+                  <iframe
+                    srcDoc={minimalTemplate.html_preview}
+                    className="w-full h-full pointer-events-none"
+                    title="Minimal Clean"
+                    sandbox="allow-same-origin"
+                  />
+                </div>
+              </div>
+              
+              {/* 광고 카피 정보 */}
+              <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-4 rounded-lg border border-purple-100">
+                <h5 className="font-semibold text-gray-900 mb-2">📝 광고 카피</h5>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <span className="text-gray-500">헤드라인:</span>
+                    <p className="font-semibold text-gray-900">{minimalTemplate.ad_copy.headline}</p>
                   </div>
-                ))}
+                  <div>
+                    <span className="text-gray-500">할인:</span>
+                    <p className="font-semibold text-red-600">{minimalTemplate.ad_copy.discount}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">기간:</span>
+                    <p className="text-gray-700">{minimalTemplate.ad_copy.period}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">브랜드:</span>
+                    <p className="text-gray-800">{minimalTemplate.ad_copy.brand}</p>
+                  </div>
+                </div>
               </div>
             </div>
           ),
         });
 
-        setTimeout(() => {
-          // ✨ 템플릿 데이터를 클로저로 캡처
-          const capturedTemplates = data.templates;
-          const capturedCaptionId = captionId;
-          const capturedToken = token;
-          
-          // ✨ 템플릿 선택 핸들러 (클로저 내부에서 정의)
-          const handleSelectWithData = (templateName: string) => {
-            setSelectedTemplate(templateName);
-            
-            updateStep('template-select', {
+        // 자동으로 저장 및 PNG 생성
+        setTimeout(async () => {
+          setProgress(90);
+
+          try {
+            // Step 7: PNG 이미지 생성
+            addStep({
+              id: 'render-image',
+              title: '7️⃣ PNG 이미지 생성',
               status: 'processing',
               content: (
-                <TemplateSelector
-                  templates={capturedTemplates}
-                  selectedTemplate={templateName}
-                  onSelect={handleSelectWithData}
-                  onSave={handleSaveWithData}
-                />
+                <div className="flex flex-col items-center py-8">
+                  <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mb-4"></div>
+                  <p className="text-gray-600">고품질 PNG 이미지를 생성하고 있습니다...</p>
+                  <p className="text-sm text-gray-500 mt-2">평균 2-3초 소요됩니다</p>
+                </div>
               ),
+              timestamp: new Date()
             });
-          };
 
-          // ✨ 템플릿 저장 핸들러 (클로저 내부에서 정의)
-          const handleSaveWithData = async () => {
-            const selected = capturedTemplates.find(t => t.template_name === selectedTemplate);
-            
-            if (!selected) {
-              alert('템플릿을 선택해주세요.');
-              return;
+            // 템플릿 저장
+            const saveResponse = await fetch(`${API_URL}/api/v1/ad-copy/save`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                caption_id: captionId,
+                template_name: 'minimal',
+                ad_copy_data: minimalTemplate.ad_copy,
+                html_content: minimalTemplate.html_preview
+              })
+            });
+
+            if (!saveResponse.ok) {
+              throw new Error('템플릿 저장 실패');
             }
 
-            setProgress(90);
+            const { ad_copy_id } = await saveResponse.json();
 
-            // Step 7 완료
-            updateStep('template-select', {
-              status: 'completed',
+            // PNG 이미지 생성
+            const renderResponse = await fetch(`${API_URL}/api/v1/render-image`, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                ad_copy_id: ad_copy_id
+              })
+            });
+
+            if (renderResponse.ok) {
+              const renderData = await renderResponse.json();
+              setFinalImageUrl(renderData.image_url);
+              setProgress(100);
+
+              console.log(`✅ PNG 생성 완료: ${renderData.processing_time.toFixed(2)}초`);
+
+              // Step 7 완료
+              updateStep('render-image', {
+                status: 'completed',
+                content: (
+                  <div className="text-center py-2">
+                    <p className="text-green-600">✅ PNG 생성 완료 ({renderData.processing_time.toFixed(2)}초)</p>
+                  </div>
+                ),
+              });
+
+              // Step 8: 최종 완료
+              setTimeout(() => {
+                addStep({
+                  id: 'final',
+                  title: '✅ 완료',
+                  status: 'completed',
+                  content: (
+                    <FinalImageResult
+                      imageUrl={renderData.image_url}
+                      adCopyId={ad_copy_id}
+                      onReset={handleReset}
+                    />
+                  ),
+                  timestamp: new Date()
+                });
+              }, 500);
+
+            } else {
+              throw new Error('PNG 생성 실패');
+            }
+
+          } catch (error) {
+            console.error('PNG generation error:', error);
+            updateStep('render-image', {
+              status: 'error',
               content: (
-                <div className="text-center py-4">
-                  <p className="text-green-600 font-semibold">
-                    ✅ {selected.template_display_name} 템플릿 선택됨
-                  </p>
+                <div className="text-center py-8">
+                  <p className="text-red-600 font-semibold mb-4">❌ PNG 생성 실패</p>
+                  <button
+                    onClick={handleGenerateAdCopy}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                  >
+                    다시 시도
+                  </button>
                 </div>
               ),
             });
-
-            try {
-              // Step 8: 템플릿 저장
-              addStep({
-                id: 'save-template',
-                title: '8️⃣ 템플릿 저장 중...',
-                status: 'processing',
-                content: (
-                  <div className="flex items-center justify-center py-4">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
-                  </div>
-                ),
-                timestamp: new Date()
-              });
-
-              const saveResponse = await fetch(`${API_URL}/api/v1/ad-copy/save`, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${capturedToken}`,
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  caption_id: capturedCaptionId,
-                  template_name: selectedTemplate,
-                  ad_copy_data: selected.ad_copy,
-                  html_content: selected.html_preview
-                })
-              });
-
-              if (saveResponse.ok) {
-                const { ad_copy_id } = await saveResponse.json();
-                
-                // Step 8 완료
-                updateStep('save-template', {
-                  status: 'completed',
-                  content: (
-                    <div className="text-center py-2">
-                      <p className="text-green-600 text-sm">✅ 저장 완료</p>
-                    </div>
-                  ),
-                });
-
-                // Step 9: 이미지 렌더링
-                setTimeout(() => {
-                  addStep({
-                    id: 'render-image',
-                    title: '9️⃣ 이미지 렌더링',
-                    status: 'processing',
-                    content: (
-                      <div className="flex flex-col items-center py-8">
-                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mb-4"></div>
-                        <p className="text-gray-600">PNG 이미지를 생성하고 있습니다...</p>
-                        <p className="text-sm text-gray-500 mt-2">평균 2-3초 소요됩니다</p>
-                      </div>
-                    ),
-                    timestamp: new Date()
-                  });
-
-                  handleRenderImage(ad_copy_id);
-                }, 500);
-
-              } else {
-                throw new Error('템플릿 저장 실패');
-              }
-
-            } catch (error) {
-              console.error('Save template error:', error);
-              alert('템플릿 저장에 실패했습니다.');
-            }
-          };
-
-          // Step 7 생성
-          addStep({
-            id: 'template-select',
-            title: '7️⃣ 템플릿 선택',
-            status: 'processing',
-            content: (
-              <TemplateSelector
-                templates={capturedTemplates}
-                selectedTemplate={selectedTemplate}
-                onSelect={handleSelectWithData}
-                onSave={handleSaveWithData}
-              />
-            ),
-            timestamp: new Date()
-          });
+          }
         }, 500);
 
       } else {
@@ -882,25 +692,6 @@ export default function DashboardPage() {
     }
   };
 
-
-  // ===== 3. 템플릿 선택 함수 추가 =====
-  const handleSelectTemplate = (templateName: string) => {
-    setSelectedTemplate(templateName);
-    
-    // Step 7 업데이트 (선택 반영)
-    updateStep('template-select', {
-      status: 'processing',
-      content: (
-        <TemplateSelector
-          templates={allTemplates}
-          selectedTemplate={templateName}
-          onSelect={handleSelectTemplate}
-          onSave={handleSaveTemplate}
-        />
-      ),
-    });
-  };
-
   const handleReset = () => {
     setSteps([]);
     setProgress(0);
@@ -915,8 +706,6 @@ export default function DashboardPage() {
     setAdCopyData(null);
     setHtmlPreview('');
     setTemplateUsed('');
-    setAllTemplates([]);       
-    setSelectedTemplate('');    
     setFinalImageUrl('');      
     
     addStep({
@@ -1306,140 +1095,6 @@ function CaptionEditor({
     </div>
   );
 }
-
-// ===== 2. 템플릿 선택 컴포넌트 =====
-function TemplateSelector({
-  templates,
-  selectedTemplate,
-  onSelect,
-  onSave,
-}: {
-  templates: Array<{
-    template_name: string;
-    template_display_name: string;
-    ad_copy: any;
-    html_preview: string;
-  }>;
-  selectedTemplate: string | null;
-  onSelect: (templateName: string) => void;
-  onSave: () => void;
-}) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h4 className="font-semibold mb-3 text-gray-900 flex items-center gap-2">
-          <span>🎨</span>
-          <span>템플릿 선택 (총 {templates.length}개)</span>
-        </h4>
-        <p className="text-sm text-gray-600 mb-4">
-          마음에 드는 디자인을 선택하세요
-        </p>
-      </div>
-
-      <div className="grid grid-cols-3 gap-6">
-        {templates.map((template) => (
-          <button
-            key={template.template_name}
-            onClick={() => onSelect(template.template_name)}
-            className={`relative rounded-xl overflow-hidden border-4 transition-all hover:shadow-2xl ${
-              selectedTemplate === template.template_name
-                ? 'border-purple-600 shadow-2xl'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-          >
-            {/* HTML 미리보기 */}
-            <div className="aspect-square bg-gray-50">
-              <iframe
-                srcDoc={template.html_preview}
-                className="w-full h-full pointer-events-none"
-                title={template.template_display_name}
-                sandbox="allow-same-origin"
-              />
-            </div>
-            
-            {/* 템플릿 이름 */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/80 to-transparent p-4">
-              <p className="text-white font-bold text-lg">
-                {template.template_display_name}
-              </p>
-              <p className="text-white/70 text-sm mt-1">
-                {template.template_name}
-              </p>
-            </div>
-            
-            {/* 선택 체크 */}
-            {selectedTemplate === template.template_name && (
-              <div className="absolute top-4 right-4 bg-purple-600 text-white rounded-full p-3">
-                <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"/>
-                </svg>
-              </div>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* 광고 카피 상세 정보 (선택된 템플릿) */}
-      {selectedTemplate && (
-        <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-lg border border-purple-100">
-          {(() => {
-            const selected = templates.find(t => t.template_name === selectedTemplate);
-            if (!selected) return null;
-            
-            return (
-              <div className="space-y-3">
-                <h5 className="font-bold text-lg text-gray-900">
-                  선택된 템플릿: {selected.template_display_name}
-                </h5>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">헤드라인</span>
-                    <p className="text-lg font-bold text-gray-900 mt-1">{selected.ad_copy.headline}</p>
-                  </div>
-                  
-                  <div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">할인</span>
-                    <p className="text-lg font-semibold text-red-600 mt-1">{selected.ad_copy.discount}</p>
-                  </div>
-                  
-                  <div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기간</span>
-                    <p className="text-sm text-gray-700 mt-1">{selected.ad_copy.period}</p>
-                  </div>
-                  
-                  <div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">브랜드</span>
-                    <p className="text-sm font-medium text-gray-800 mt-1">{selected.ad_copy.brand}</p>
-                  </div>
-                </div>
-                
-                {selected.ad_copy.caption && (
-                  <div>
-                    <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">캡션</span>
-                    <p className="text-gray-700 mt-1 leading-relaxed">{selected.ad_copy.caption}</p>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {/* 저장 버튼 */}
-      {selectedTemplate && (
-        <button
-          onClick={onSave}
-          className="w-full py-4 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-bold text-lg hover:shadow-lg transition flex items-center justify-center gap-2"
-        >
-          <span>💾</span>
-          <span>이미지로 저장하기</span>
-        </button>
-      )}
-    </div>
-  );
-}
-
 
 // ===== 3. 최종 결과 컴포넌트 =====
 function FinalResult({
