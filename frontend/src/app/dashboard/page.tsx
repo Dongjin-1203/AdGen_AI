@@ -25,6 +25,14 @@ interface StepData {
   timestamp: Date;
 }
 
+interface AdCopyData {
+  headline: string;
+  discount?: string;
+  period?: string;
+  brand?: string;
+  caption?: string;
+}
+
 const AVAILABLE_STYLES = [
   { value: 'resort', label: '리조트', emoji: '🏖️', description: '밝고 경쾌한 휴양지 분위기' },
   { value: 'retro', label: '레트로', emoji: '📻', description: '빈티지하고 복고적인 감성' },
@@ -47,6 +55,11 @@ export default function DashboardPage() {
   const [selectedStyle, setSelectedStyle] = useState<string>('');
   const [userPrompt, setUserPrompt] = useState('');
   const [generatedResult, setGeneratedResult] = useState<string>('');
+  
+  // ⭐ 새로 추가: 광고 카피 관련
+  const [adCopyData, setAdCopyData] = useState<AdCopyData | null>(null);
+  const [htmlPreview, setHtmlPreview] = useState<string>('');
+  const [templateUsed, setTemplateUsed] = useState<string>('');
 
   // ===== 초기화 =====
   useEffect(() => {
@@ -109,7 +122,7 @@ export default function DashboardPage() {
   // ===== Step 1: 이미지 선택 =====
   const handleSelectContent = (content: Content) => {
     setSelectedContent(content);
-    setProgress(33);
+    setProgress(25);
 
     // Step 1 완료 처리
     updateStep('select-image', {
@@ -151,7 +164,7 @@ export default function DashboardPage() {
   // ===== Step 2: 스타일 선택 =====
   const handleSelectStyle = (style: string) => {
     setSelectedStyle(style);
-    setProgress(66);
+    setProgress(50);
 
     const selectedStyleData = AVAILABLE_STYLES.find(s => s.value === style);
 
@@ -173,7 +186,7 @@ export default function DashboardPage() {
     setTimeout(() => {
       addStep({
         id: 'generate',
-        title: '3️⃣ AI 광고 생성',
+        title: '3️⃣ AI 광고 모델 생성',
         status: 'processing',
         content: null,
         timestamp: new Date(),
@@ -181,11 +194,11 @@ export default function DashboardPage() {
     }, 300);
   };
 
-  // ===== Step 3: 생성 =====
+  // ===== Step 3: AI 광고 모델 생성 =====
   const handleGenerate = async () => {
     if (!selectedContent || !selectedStyle) return;
 
-    setProgress(75);
+    setProgress(60);
 
     // 생성 중 표시
     updateStep('generate', {
@@ -193,7 +206,7 @@ export default function DashboardPage() {
       content: (
         <div className="flex flex-col items-center py-8">
           <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
-          <p className="text-gray-600">AI가 광고를 생성하고 있습니다...</p>
+          <p className="text-gray-600">AI가 패션 모델 이미지를 생성하고 있습니다...</p>
           <p className="text-sm text-gray-500 mt-2">평균 30-60초 소요됩니다</p>
         </div>
       ),
@@ -216,7 +229,7 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json();
         setGeneratedResult(data.result_url);
-        setProgress(100);
+        setProgress(75);
 
         // 생성 완료
         updateStep('generate', {
@@ -226,31 +239,10 @@ export default function DashboardPage() {
               <div className="relative w-full aspect-square max-w-2xl mx-auto">
                 <Image
                   src={data.result_url}
-                  alt="Generated Ad"
+                  alt="Generated Model Image"
                   fill
                   className="object-contain rounded-lg shadow-xl"
                 />
-              </div>
-              <div className="flex gap-3">
-                <a
-                  href={data.result_url}
-                  download="generated-ad.jpg"
-                  className="flex-1 text-center py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
-                >
-                  💾 다운로드
-                </a>
-                <Link
-                  href="/history"
-                  className="flex-1 text-center py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition"
-                >
-                  📜 히스토리
-                </Link>
-                <button
-                  onClick={handleReset}
-                  className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
-                >
-                  🎨 새로 만들기
-                </button>
               </div>
               <div className="text-center text-sm text-gray-600">
                 ⏱️ 생성 시간: {data.processing_time?.toFixed(2)}초
@@ -258,6 +250,19 @@ export default function DashboardPage() {
             </div>
           ),
         });
+
+        // ⭐ Step 4 자동 시작
+        setTimeout(() => {
+          addStep({
+            id: 'ad-copy',
+            title: '4️⃣ 광고 카피 제작',
+            status: 'processing',
+            content: null,
+            timestamp: new Date(),
+          });
+          
+          handleGenerateAdCopy();
+        }, 500);
       } else {
         throw new Error('Generation failed');
       }
@@ -282,6 +287,80 @@ export default function DashboardPage() {
     }
   };
 
+  // ===== ⭐ Step 4: 광고 카피 제작 (NEW) =====
+  const handleGenerateAdCopy = async () => {
+    if (!selectedContent) return;
+
+    setProgress(90);
+
+    updateStep('ad-copy', {
+      status: 'processing',
+      content: (
+        <div className="flex flex-col items-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-purple-600 mb-4"></div>
+          <p className="text-gray-600">GPT-5가 광고 카피를 작성하고 있습니다...</p>
+          <p className="text-sm text-gray-500 mt-2">평균 2-5초 소요됩니다</p>
+        </div>
+      ),
+    });
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/ad-copy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content_id: selectedContent.content_id,
+          user_request: userPrompt || undefined,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAdCopyData(data.ad_copy);
+        setHtmlPreview(data.html_preview);
+        setTemplateUsed(data.template_used);
+        setProgress(100);
+
+        updateStep('ad-copy', {
+          status: 'completed',
+          content: (
+            <AdCopyPreview 
+              adCopy={data.ad_copy}
+              htmlPreview={data.html_preview}
+              templateUsed={data.template_used}
+              generatedImageUrl={generatedResult}
+              onReset={handleReset}
+            />
+          ),
+        });
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Ad copy generation failed');
+      }
+    } catch (error) {
+      updateStep('ad-copy', {
+        status: 'error',
+        content: (
+          <div className="text-center py-8">
+            <p className="text-red-600 font-semibold mb-4">❌ 광고 카피 생성 실패</p>
+            <p className="text-gray-600 mb-4">
+              {error instanceof Error ? error.message : '알 수 없는 오류'}
+            </p>
+            <button
+              onClick={handleGenerateAdCopy}
+              className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+            >
+              다시 시도
+            </button>
+          </div>
+        ),
+      });
+    }
+  };
+
   const handleReset = () => {
     setSteps([]);
     setProgress(0);
@@ -289,6 +368,9 @@ export default function DashboardPage() {
     setSelectedStyle('');
     setUserPrompt('');
     setGeneratedResult('');
+    setAdCopyData(null);
+    setHtmlPreview('');
+    setTemplateUsed('');
     
     addStep({
       id: 'select-image',
@@ -536,8 +618,144 @@ function GenerateButton({
         disabled={disabled}
         className="w-full py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-bold text-lg hover:shadow-lg transition disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        🎨 AI 광고 생성하기
+        🎨 AI 패션 모델 생성하기
       </button>
+    </div>
+  );
+}
+
+// ===== ⭐ 광고 카피 미리보기 컴포넌트 (NEW) =====
+function AdCopyPreview({
+  adCopy,
+  htmlPreview,
+  templateUsed,
+  generatedImageUrl,
+  onReset,
+}: {
+  adCopy: AdCopyData;
+  htmlPreview: string;
+  templateUsed: string;
+  generatedImageUrl: string;
+  onReset: () => void;
+}) {
+  const templateDisplayNames: { [key: string]: string } = {
+    minimal: 'Minimal Clean',
+    bold: 'Bold Impact',
+    vintage: 'Vintage Sepia',
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* 광고 카피 정보 */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-lg border border-purple-100">
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-2xl">✨</span>
+          <h4 className="font-bold text-lg">생성된 광고 카피</h4>
+          <span className="text-xs bg-white px-3 py-1 rounded-full text-gray-600 border border-gray-200">
+            {templateDisplayNames[templateUsed] || templateUsed}
+          </span>
+        </div>
+        
+        <div className="space-y-3">
+          <div>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">헤드라인</span>
+            <p className="text-xl font-bold text-gray-900 mt-1">{adCopy.headline}</p>
+          </div>
+          
+          {adCopy.discount && (
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">할인</span>
+              <p className="text-lg font-semibold text-red-600 mt-1">{adCopy.discount}</p>
+            </div>
+          )}
+          
+          {adCopy.period && (
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">기간</span>
+              <p className="text-sm text-gray-700 mt-1">{adCopy.period}</p>
+            </div>
+          )}
+          
+          {adCopy.brand && (
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">브랜드</span>
+              <p className="text-sm font-medium text-gray-800 mt-1">{adCopy.brand}</p>
+            </div>
+          )}
+          
+          {adCopy.caption && (
+            <div>
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">캡션</span>
+              <p className="text-gray-700 mt-1 leading-relaxed">{adCopy.caption}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* HTML 미리보기 */}
+      <div>
+        <h4 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+          <span>🎨</span> 광고 디자인 미리보기 (1080×1080px)
+        </h4>
+        <div className="border-4 border-gray-200 rounded-lg overflow-hidden shadow-lg bg-gray-50">
+          <iframe
+            srcDoc={htmlPreview}
+            className="w-full aspect-square"
+            title="Ad Preview"
+            sandbox="allow-same-origin"
+          />
+        </div>
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          💡 이 디자인은 인스타그램 정사각형 포맷(1:1)에 최적화되어 있습니다
+        </p>
+      </div>
+
+      {/* 액션 버튼 */}
+      <div className="grid grid-cols-3 gap-3">
+        <button
+          onClick={() => {
+            const blob = new Blob([htmlPreview], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ad-${templateUsed}-${Date.now()}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }}
+          className="py-3 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition flex items-center justify-center gap-2"
+        >
+          <span>💾</span>
+          <span>HTML 다운로드</span>
+        </button>
+        
+        <Link
+          href="/history"
+          className="py-3 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition flex items-center justify-center gap-2"
+        >
+          <span>📜</span>
+          <span>히스토리</span>
+        </Link>
+        
+        <button
+          onClick={onReset}
+          className="py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2"
+        >
+          <span>🎨</span>
+          <span>새로 만들기</span>
+        </button>
+      </div>
+
+      {/* 추가 정보 */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <h5 className="font-semibold text-blue-900 mb-2 flex items-center gap-2">
+          <span>💡</span> 다음 단계
+        </h5>
+        <ul className="text-sm text-blue-800 space-y-1">
+          <li>• HTML 파일을 다운로드하여 웹사이트에 바로 사용하세요</li>
+          <li>• 이미지로 변환하여 소셜 미디어에 업로드하세요</li>
+          <li>• 디자인 편집 툴로 추가 커스터마이징도 가능합니다</li>
+        </ul>
+      </div>
     </div>
   );
 }

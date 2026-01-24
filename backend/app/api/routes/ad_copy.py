@@ -9,7 +9,7 @@ from typing import Optional, Dict
 import json
 
 from app.db.base import get_db
-from app.models.schemas import UserContent
+from app.models.schemas import UserContent, GenerationHistory
 from app.models.reward_system import AIPrediction
 from app.services.html.ad_generator import AdGenerator
 from app.api.routes.auth import get_current_user
@@ -92,16 +92,19 @@ async def generate_ad_copy(
             detail="Vision AI 분석이 완료되지 않았습니다. 먼저 이미지를 업로드하세요."
         )
     
-    # 3. SDXL 생성 이미지 확인
-    # Note: generated_image_url 필드가 UserContent에 있다고 가정
-    # 없다면 이 부분은 제거하거나 수정 필요
-    generated_image_url = getattr(content, 'generated_image_url', None)
+    # 3. ⭐ GenerationHistory에서 최신 생성 이미지 가져오기 (수정됨)
+    latest_generation = db.query(GenerationHistory).filter(
+        GenerationHistory.content_id == request.content_id,
+        GenerationHistory.user_id == current_user.user_id
+    ).order_by(GenerationHistory.created_at.desc()).first()
     
-    if not generated_image_url:
+    if not latest_generation:
         raise HTTPException(
             status_code=400,
-            detail="생성된 모델 이미지가 없습니다. 먼저 SDXL 이미지를 생성하세요."
+            detail="생성된 모델 이미지가 없습니다. 먼저 AI 광고 모델을 생성하세요."
         )
+    
+    generated_image_url = latest_generation.result_url
     
     # 4. Vision AI 분석 결과 준비
     # style_tags는 JSON 또는 문자열로 저장되어 있을 수 있음
