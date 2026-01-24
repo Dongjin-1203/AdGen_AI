@@ -373,7 +373,24 @@ export default function DashboardPage() {
 
   // ===== 템플릿 선택 후 이미지 렌더링 =====
   const handleSaveTemplate = async () => {
-    const selected = templatesRef.current.find(t => t.template_name === selectedTemplate);  // ✨
+    // 디버깅 로그
+    console.log('=== 디버깅 시작 ===');
+    console.log('1. templatesRef.current:', templatesRef.current);
+    console.log('2. templatesRef.current 길이:', templatesRef.current.length);
+    console.log('3. selectedTemplate:', selectedTemplate);
+    console.log('4. allTemplates:', allTemplates);
+    console.log('5. allTemplates 길이:', allTemplates.length);
+    
+    // templatesRef가 비어있으면 allTemplates 사용 (임시)
+    const templatesSource = templatesRef.current.length > 0 
+      ? templatesRef.current 
+      : allTemplates;
+    
+    console.log('6. 사용할 템플릿 소스:', templatesSource);
+    const selected = allTemplates.find(t => t.template_name === selectedTemplate);
+
+    console.log('7. 찾은 템플릿:', selected);
+    console.log('===================');
     
     if (!selected) {
       alert('템플릿을 선택해주세요.');
@@ -717,7 +734,7 @@ export default function DashboardPage() {
             status: 'processing',
             content: (
               <TemplateSelector
-                templates={templatesRef.current}
+                templates={data.templates}
                 selectedTemplate={selectedTemplate}
                 onSelect={handleSelectTemplate}
                 onSave={handleSaveTemplate}
@@ -759,7 +776,7 @@ export default function DashboardPage() {
       status: 'processing',
       content: (
         <TemplateSelector
-          templates={templatesRef.current}
+          templates={allTemplates}
           selectedTemplate={templateName}
           onSelect={handleSelectTemplate}
           onSave={handleSaveTemplate}
