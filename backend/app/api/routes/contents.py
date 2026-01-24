@@ -723,9 +723,11 @@ async def delete_content(
     db: Session = Depends(get_db)
 ):
     """
-    콘텐츠 삭제
+    콘텐츠 삭제 (관련 데이터 모두 삭제)
+    
+    ⭐ CASCADE 삭제 문제 해결: 수동 삭제 방식
     """
-    # 본인 콘텐츠 확인
+    # 1. 콘텐츠 조회
     content = db.query(UserContent).filter(
         UserContent.content_id == content_id,
         UserContent.user_id == current_user.user_id
@@ -737,12 +739,64 @@ async def delete_content(
             detail="Content not found"
         )
     
-    # 삭제
-    db.delete(content)
-    db.commit()
-    
-    return {
-        "success": True,
-        "content_id": content_id,
-        "message": "Content deleted successfully"
-    }
+    try:
+        # 2. 의존성 순서대로 삭제
+        from app.models.caption_system import AdCopyHistory, AdCaption, CaptionCorrection
+        
+        # AdCopyHistory 삭제
+        db.query(AdCopyHistory).filter(
+            AdCopyHistory.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # CaptionCorrection 삭제
+        caption_ids = [c.caption_id for c in db.query(AdCaption).filter(
+            AdCaption.content_id == content_id
+        ).all()]
+        
+        if caption_ids:
+            db.query(CaptionCorrection).filter(
+                CaptionCorrection.caption_id.in_(caption_ids)
+            ).delete(synchronize_session=False)
+        
+        # AdCaption 삭제
+        db.query(AdCaption).filter(
+            AdCaption.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # RewardScore, UserCorrection, AIPrediction 삭제
+        db.query(RewardScore).filter(
+            RewardScore.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        db.query(UserCorrection).filter(
+            UserCorrection.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        db.query(AIPrediction).filter(
+            AIPrediction.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # GenerationHistory 삭제
+        from app.models.schemas import GenerationHistory
+        db.query(GenerationHistory).filter(
+            GenerationHistory.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # UserContent 삭제
+        db.delete(content)
+        
+        # 커밋
+        db.commit()
+        
+        return {
+            "success": True,
+            "content_id": content_id,
+            "message": "Content deleted successfully"
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete content: {str(e)}"
+        )

@@ -17,8 +17,11 @@ class AdGenerator:
     
     def __init__(self):
         """OpenAI 클라이언트 초기화"""
-        self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-4o"  # ✨ gpt-5-chat-latest → gpt-4o (안정성)
+        self.client = OpenAI(
+            api_key=os.getenv("OPENAI_API_KEY"),
+            timeout=30.0  # ✨ 30초 타임아웃 추가
+        )
+        self.model = "gpt-4o"  # gpt-4o 유지
     
     def _build_prompt(
         self, 
@@ -223,7 +226,8 @@ class AdGenerator:
                     }
                 ],
                 temperature=0.7,
-                max_tokens=500,  # max_completion_tokens → max_tokens
+                max_tokens=500,  # ✨ max_completion_tokens → max_tokens
+                timeout=30.0,  # ✨ 타임아웃 추가
                 response_format={"type": "json_object"}  # JSON 모드 강제
             )
             

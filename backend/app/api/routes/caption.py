@@ -203,13 +203,14 @@ async def generate_caption(
 """
         
         response = client.chat.completions.create(
-            model="gpt-4o",  # gpt-4o 또는 gpt-4o-mini
+            model="gpt-4o",  # gpt-4o 유지
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
             ],
             temperature=0.8,
             max_tokens=200,
+            timeout=30.0,  # ✨ 30초 타임아웃 추가
             response_format={"type": "json_object"}
         )
         
@@ -364,13 +365,14 @@ async def test_caption_generation(
 """
         
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o",  # gpt-4o 유지
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_message}
             ],
             temperature=0.8,
             max_tokens=200,
+            timeout=30.0,
             response_format={"type": "json_object"}
         )
         
