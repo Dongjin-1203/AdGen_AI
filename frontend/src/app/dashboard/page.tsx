@@ -373,7 +373,7 @@ export default function DashboardPage() {
 
   // ===== 템플릿 선택 후 이미지 렌더링 =====
   const handleSaveTemplate = async () => {
-    const selected = allTemplates.find(t => t.template_name === selectedTemplate);
+    const selected = templatesRef.current.find(t => t.template_name === selectedTemplate);  // ✨
     
     if (!selected) {
       alert('템플릿을 선택해주세요.');
