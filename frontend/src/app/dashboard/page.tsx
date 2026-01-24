@@ -726,18 +726,133 @@ export default function DashboardPage() {
           ),
         });
 
-        // Step 7 자동 시작: 템플릿 선택
         setTimeout(() => {
+          // ✨ 템플릿 데이터를 클로저로 캡처
+          const capturedTemplates = data.templates;
+          const capturedCaptionId = captionId;
+          const capturedToken = token;
+          
+          // ✨ 템플릿 선택 핸들러 (클로저 내부에서 정의)
+          const handleSelectWithData = (templateName: string) => {
+            setSelectedTemplate(templateName);
+            
+            updateStep('template-select', {
+              status: 'processing',
+              content: (
+                <TemplateSelector
+                  templates={capturedTemplates}
+                  selectedTemplate={templateName}
+                  onSelect={handleSelectWithData}
+                  onSave={handleSaveWithData}
+                />
+              ),
+            });
+          };
+
+          // ✨ 템플릿 저장 핸들러 (클로저 내부에서 정의)
+          const handleSaveWithData = async () => {
+            const selected = capturedTemplates.find(t => t.template_name === selectedTemplate);
+            
+            if (!selected) {
+              alert('템플릿을 선택해주세요.');
+              return;
+            }
+
+            setProgress(90);
+
+            // Step 7 완료
+            updateStep('template-select', {
+              status: 'completed',
+              content: (
+                <div className="text-center py-4">
+                  <p className="text-green-600 font-semibold">
+                    ✅ {selected.template_display_name} 템플릿 선택됨
+                  </p>
+                </div>
+              ),
+            });
+
+            try {
+              // Step 8: 템플릿 저장
+              addStep({
+                id: 'save-template',
+                title: '8️⃣ 템플릿 저장 중...',
+                status: 'processing',
+                content: (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                  </div>
+                ),
+                timestamp: new Date()
+              });
+
+              const saveResponse = await fetch(`${API_URL}/api/v1/ad-copy/save`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${capturedToken}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  caption_id: capturedCaptionId,
+                  template_name: selectedTemplate,
+                  ad_copy_data: selected.ad_copy,
+                  html_content: selected.html_preview
+                })
+              });
+
+              if (saveResponse.ok) {
+                const { ad_copy_id } = await saveResponse.json();
+                
+                // Step 8 완료
+                updateStep('save-template', {
+                  status: 'completed',
+                  content: (
+                    <div className="text-center py-2">
+                      <p className="text-green-600 text-sm">✅ 저장 완료</p>
+                    </div>
+                  ),
+                });
+
+                // Step 9: 이미지 렌더링
+                setTimeout(() => {
+                  addStep({
+                    id: 'render-image',
+                    title: '9️⃣ 이미지 렌더링',
+                    status: 'processing',
+                    content: (
+                      <div className="flex flex-col items-center py-8">
+                        <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-green-600 mb-4"></div>
+                        <p className="text-gray-600">PNG 이미지를 생성하고 있습니다...</p>
+                        <p className="text-sm text-gray-500 mt-2">평균 2-3초 소요됩니다</p>
+                      </div>
+                    ),
+                    timestamp: new Date()
+                  });
+
+                  handleRenderImage(ad_copy_id);
+                }, 500);
+
+              } else {
+                throw new Error('템플릿 저장 실패');
+              }
+
+            } catch (error) {
+              console.error('Save template error:', error);
+              alert('템플릿 저장에 실패했습니다.');
+            }
+          };
+
+          // Step 7 생성
           addStep({
             id: 'template-select',
             title: '7️⃣ 템플릿 선택',
             status: 'processing',
             content: (
               <TemplateSelector
-                templates={data.templates}
+                templates={capturedTemplates}
                 selectedTemplate={selectedTemplate}
-                onSelect={handleSelectTemplate}
-                onSave={handleSaveTemplate}
+                onSelect={handleSelectWithData}
+                onSave={handleSaveWithData}
               />
             ),
             timestamp: new Date()
@@ -766,6 +881,7 @@ export default function DashboardPage() {
       });
     }
   };
+
 
   // ===== 3. 템플릿 선택 함수 추가 =====
   const handleSelectTemplate = (templateName: string) => {
