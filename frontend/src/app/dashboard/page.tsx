@@ -55,8 +55,14 @@ export default function DashboardPage() {
   const [selectedStyle, setSelectedStyle] = useState<string>('');
   const [userPrompt, setUserPrompt] = useState('');
   const [generatedResult, setGeneratedResult] = useState<string>('');
+  const [generationId, setGenerationId] = useState<string>('');
   
-  // ⭐ 새로 추가: 광고 카피 관련
+  // ⭐ 캡션 관련 (NEW)
+  const [captionId, setCaptionId] = useState<string>('');
+  const [aiCaption, setAiCaption] = useState<string>('');
+  const [finalCaption, setFinalCaption] = useState<string>('');
+  
+  // 광고 카피 관련
   const [adCopyData, setAdCopyData] = useState<AdCopyData | null>(null);
   const [htmlPreview, setHtmlPreview] = useState<string>('');
   const [templateUsed, setTemplateUsed] = useState<string>('');
@@ -68,7 +74,6 @@ export default function DashboardPage() {
       return;
     }
     
-    // 초기 단계 추가
     addStep({
       id: 'select-image',
       title: '1️⃣ 이미지 선택',
@@ -122,9 +127,8 @@ export default function DashboardPage() {
   // ===== Step 1: 이미지 선택 =====
   const handleSelectContent = (content: Content) => {
     setSelectedContent(content);
-    setProgress(25);
+    setProgress(20);
 
-    // Step 1 완료 처리
     updateStep('select-image', {
       status: 'completed',
       content: (
@@ -149,7 +153,6 @@ export default function DashboardPage() {
       ),
     });
 
-    // Step 2 추가
     setTimeout(() => {
       addStep({
         id: 'select-style',
@@ -164,11 +167,10 @@ export default function DashboardPage() {
   // ===== Step 2: 스타일 선택 =====
   const handleSelectStyle = (style: string) => {
     setSelectedStyle(style);
-    setProgress(50);
+    setProgress(40);
 
     const selectedStyleData = AVAILABLE_STYLES.find(s => s.value === style);
 
-    // Step 2 완료 처리
     updateStep('select-style', {
       status: 'completed',
       content: (
@@ -182,7 +184,6 @@ export default function DashboardPage() {
       ),
     });
 
-    // Step 3 추가
     setTimeout(() => {
       addStep({
         id: 'generate',
@@ -198,9 +199,8 @@ export default function DashboardPage() {
   const handleGenerate = async () => {
     if (!selectedContent || !selectedStyle) return;
 
-    setProgress(60);
+    setProgress(50);
 
-    // 생성 중 표시
     updateStep('generate', {
       status: 'processing',
       content: (
@@ -229,9 +229,9 @@ export default function DashboardPage() {
       if (response.ok) {
         const data = await response.json();
         setGeneratedResult(data.result_url);
-        setProgress(75);
+        setGenerationId(data.history_id);
+        setProgress(60);
 
-        // 생성 완료
         updateStep('generate', {
           status: 'completed',
           content: (
@@ -251,17 +251,17 @@ export default function DashboardPage() {
           ),
         });
 
-        // ⭐ Step 4 자동 시작
+        // ⭐ Step 4 자동 시작: 캡션 생성
         setTimeout(() => {
           addStep({
-            id: 'ad-copy',
-            title: '4️⃣ 광고 카피 제작',
+            id: 'caption-generate',
+            title: '4️⃣ 광고 캡션 생성',
             status: 'processing',
             content: null,
             timestamp: new Date(),
           });
           
-          handleGenerateAdCopy();
+          handleGenerateCaption(data.history_id);
         }, 500);
       } else {
         throw new Error('Generation failed');
@@ -287,19 +287,183 @@ export default function DashboardPage() {
     }
   };
 
-  // ===== ⭐ Step 4: 광고 카피 제작 (NEW) =====
-  const handleGenerateAdCopy = async () => {
+  // ===== ⭐ Step 4: 캡션 생성 (NEW) =====
+  const handleGenerateCaption = async (historyId: string) => {
     if (!selectedContent) return;
 
-    setProgress(90);
+    setProgress(70);
+
+    updateStep('caption-generate', {
+      status: 'processing',
+      content: (
+        <div className="flex flex-col items-center py-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-green-600 mb-4"></div>
+          <p className="text-gray-600">GPT가 광고 캡션을 작성하고 있습니다...</p>
+          <p className="text-sm text-gray-500 mt-2">평균 2-3초 소요됩니다</p>
+        </div>
+      ),
+    });
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/caption`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content_id: selectedContent.content_id,
+          generation_id: historyId,
+          user_request: userPrompt || undefined,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCaptionId(data.caption_id);
+        setAiCaption(data.ai_caption);
+        setFinalCaption(data.ai_caption); // 초기값
+        setProgress(75);
+
+        updateStep('caption-generate', {
+          status: 'completed',
+          content: (
+            <div className="bg-green-50 p-6 rounded-lg border border-green-200">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">✨</span>
+                <h4 className="font-bold text-lg text-gray-900">AI가 생성한 캡션</h4>
+              </div>
+              <p className="text-gray-800 text-lg leading-relaxed">
+                {data.ai_caption}
+              </p>
+            </div>
+          ),
+        });
+
+        // ⭐ Step 5 추가: 캡션 확정
+        setTimeout(() => {
+          addStep({
+            id: 'caption-confirm',
+            title: '5️⃣ 캡션 확정',
+            status: 'processing',
+            content: null,
+            timestamp: new Date(),
+          });
+        }, 500);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Caption generation failed');
+      }
+    } catch (error) {
+      updateStep('caption-generate', {
+        status: 'error',
+        content: (
+          <div className="text-center py-8">
+            <p className="text-red-600 font-semibold mb-4">❌ 캡션 생성 실패</p>
+            <p className="text-gray-600 mb-4">
+              {error instanceof Error ? error.message : '알 수 없는 오류'}
+            </p>
+            <button
+              onClick={() => handleGenerateCaption(historyId)}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              다시 시도
+            </button>
+          </div>
+        ),
+      });
+    }
+  };
+
+  // ===== ⭐ Step 5: 캡션 확정 (NEW) =====
+  const handleConfirmCaption = async (useOriginal: boolean) => {
+    if (!captionId) return;
+
+    setProgress(85);
+
+    const captionToConfirm = useOriginal ? aiCaption : finalCaption;
+
+    try {
+      const response = await fetch(`${API_URL}/api/v1/caption/confirm`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          caption_id: captionId,
+          final_caption: captionToConfirm,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        updateStep('caption-confirm', {
+          status: 'completed',
+          content: (
+            <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+              <div className="flex items-center gap-2 mb-3">
+                <span className="text-2xl">✅</span>
+                <h4 className="font-bold text-lg text-gray-900">
+                  {data.is_modified ? '캡션 수정 완료' : '캡션 확정 완료'}
+                </h4>
+              </div>
+              <p className="text-gray-800 text-lg leading-relaxed mb-3">
+                {captionToConfirm}
+              </p>
+              <p className="text-sm text-gray-600">
+                {data.is_modified 
+                  ? '💡 수정된 캡션이 보상 학습 데이터로 저장되었습니다.'
+                  : '🎯 AI 캡션이 그대로 사용됩니다.'}
+              </p>
+            </div>
+          ),
+        });
+
+        // ⭐ Step 6 자동 시작: 최종 광고 생성
+        setTimeout(() => {
+          addStep({
+            id: 'ad-copy',
+            title: '6️⃣ 최종 광고 페이지 생성',
+            status: 'processing',
+            content: null,
+            timestamp: new Date(),
+          });
+          
+          handleGenerateAdCopy();
+        }, 500);
+      } else {
+        throw new Error('Caption confirmation failed');
+      }
+    } catch (error) {
+      updateStep('caption-confirm', {
+        status: 'error',
+        content: (
+          <div className="text-center py-8">
+            <p className="text-red-600 font-semibold mb-4">❌ 캡션 확정 실패</p>
+            <p className="text-gray-600 mb-4">
+              {error instanceof Error ? error.message : '알 수 없는 오류'}
+            </p>
+          </div>
+        ),
+      });
+    }
+  };
+
+  // ===== ⭐ Step 6: 최종 광고 생성 (수정됨: caption_id 사용) =====
+  const handleGenerateAdCopy = async () => {
+    if (!captionId) return;
+
+    setProgress(95);
 
     updateStep('ad-copy', {
       status: 'processing',
       content: (
         <div className="flex flex-col items-center py-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-purple-600 mb-4"></div>
-          <p className="text-gray-600">GPT-5가 광고 카피를 작성하고 있습니다...</p>
-          <p className="text-sm text-gray-500 mt-2">평균 2-5초 소요됩니다</p>
+          <p className="text-gray-600">GPT가 최종 광고 페이지를 생성하고 있습니다...</p>
+          <p className="text-sm text-gray-500 mt-2">평균 2-3초 소요됩니다</p>
         </div>
       ),
     });
@@ -312,7 +476,7 @@ export default function DashboardPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          content_id: selectedContent.content_id,
+          caption_id: captionId,  // ⭐ caption_id 사용
           user_request: userPrompt || undefined,
         }),
       });
@@ -345,7 +509,7 @@ export default function DashboardPage() {
         status: 'error',
         content: (
           <div className="text-center py-8">
-            <p className="text-red-600 font-semibold mb-4">❌ 광고 카피 생성 실패</p>
+            <p className="text-red-600 font-semibold mb-4">❌ 광고 페이지 생성 실패</p>
             <p className="text-gray-600 mb-4">
               {error instanceof Error ? error.message : '알 수 없는 오류'}
             </p>
@@ -368,6 +532,10 @@ export default function DashboardPage() {
     setSelectedStyle('');
     setUserPrompt('');
     setGeneratedResult('');
+    setGenerationId('');
+    setCaptionId('');
+    setAiCaption('');
+    setFinalCaption('');
     setAdCopyData(null);
     setHtmlPreview('');
     setTemplateUsed('');
@@ -432,6 +600,14 @@ export default function DashboardPage() {
                   disabled={!selectedContent || !selectedStyle}
                 />
               ) : null}
+              onCaptionConfirm={step.id === 'caption-confirm' && step.status === 'processing' ? (
+                <CaptionEditor
+                  aiCaption={aiCaption}
+                  finalCaption={finalCaption}
+                  onCaptionChange={setFinalCaption}
+                  onConfirm={handleConfirmCaption}
+                />
+              ) : null}
             />
           ))}
         </div>
@@ -448,12 +624,14 @@ function StepCard({
   onSelectImage,
   onSelectStyle,
   onGenerate,
+  onCaptionConfirm,
 }: {
   step: StepData;
   isLast: boolean;
   onSelectImage?: React.ReactNode;
   onSelectStyle?: React.ReactNode;
   onGenerate?: React.ReactNode;
+  onCaptionConfirm?: React.ReactNode;
 }) {
   return (
     <div
@@ -497,6 +675,7 @@ function StepCard({
       {onSelectImage}
       {onSelectStyle}
       {onGenerate}
+      {onCaptionConfirm}
     </div>
   );
 }
@@ -624,7 +803,68 @@ function GenerateButton({
   );
 }
 
-// ===== ⭐ 광고 카피 미리보기 컴포넌트 (NEW) =====
+// ===== ⭐ 캡션 편집 컴포넌트 (NEW) =====
+function CaptionEditor({
+  aiCaption,
+  finalCaption,
+  onCaptionChange,
+  onConfirm,
+}: {
+  aiCaption: string;
+  finalCaption: string;
+  onCaptionChange: (caption: string) => void;
+  onConfirm: (useOriginal: boolean) => void;
+}) {
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+        <p className="text-sm text-yellow-800 mb-2">
+          💡 AI가 생성한 캡션을 확인하고, 필요시 수정하세요!
+        </p>
+        <p className="text-xs text-yellow-700">
+          수정한 내용은 AI 학습에 활용되어 더 나은 캡션을 만드는 데 도움이 됩니다.
+        </p>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">
+          ✏️ 캡션 수정
+        </label>
+        <textarea
+          value={finalCaption}
+          onChange={(e) => onCaptionChange(e.target.value)}
+          rows={3}
+          className="w-full p-4 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-lg"
+          placeholder="캡션을 입력하세요..."
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          현재 길이: {finalCaption.length}자
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => onConfirm(true)}
+          className="py-3 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition flex items-center justify-center gap-2"
+        >
+          <span>✅</span>
+          <span>그대로 사용</span>
+        </button>
+        
+        <button
+          onClick={() => onConfirm(false)}
+          disabled={finalCaption === aiCaption}
+          className="py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span>✏️</span>
+          <span>수정 완료</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ===== 광고 카피 미리보기 컴포넌트 =====
 function AdCopyPreview({
   adCopy,
   htmlPreview,
