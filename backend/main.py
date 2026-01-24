@@ -17,6 +17,7 @@ from app.api.routes import history
 from app.api.routes import ai_generate
 from app.api.routes import ad_copy
 from app.models import caption_system
+from app.api.routes import caption
 
 # ===== 로깅 설정 =====
 logging.basicConfig(
@@ -51,6 +52,7 @@ async def lifespan(app: FastAPI):
     # ===== SQLite 테이블 자동 생성 =====
     try:
         from app.db.base import Base, engine
+        from app.models import schemas, reward_system, caption_system
         logger.info("🔧 데이터베이스 테이블 생성 중...")
         Base.metadata.create_all(bind=engine)
         logger.info("✅ 데이터베이스 테이블 생성 완료")
@@ -123,8 +125,9 @@ app.include_router(image.router, prefix="/api/v1", tags=["Image Processing"])
 app.include_router(ai_generate.router, prefix="/api/v1", tags=["AI Generation"])  # ← 활성화
 app.include_router(history.router)
 app.include_router(ad_copy.router, prefix="/api/v1", tags=["Ad Copy"])
+app.include_router(caption.router, prefix="/api/v1", tags=["Caption"])
 
-logger.info("✅ 라우터 등록 완료: auth, contents, image, ai_generate, ad_copy, history")
+logger.info("✅ 라우터 등록 완료: auth, contents, image, ai_generate, caption, ad_copy, history")
 
 # ===== 루트 엔드포인트 =====
 @app.get("/")
@@ -159,14 +162,21 @@ async def root():
                     "image_info": "/api/v1/image-info",
                     "health": "/api/v1/health"
                 },
-                "ai_generation": {  # ← 추가
+                "ai_generation": { 
                     "generate_ad": "/api/v1/generate-ad",
                     "fashion_ad": "/api/v1/fashion-ad",
                     "generate_ad_gemini": "/api/v1/generate-ad-gemini",
                     "generate_ad_replicate": "/api/v1/generate-ad-replicate"
                 },
-                "ad_copy_generation": {  # ← 추가!
+                "caption_generation": { 
+                    "generate_caption": "/api/v1/caption",
+                    "confirm_caption": "/api/v1/caption/confirm",
+                    "get_caption": "/api/v1/caption/{id}",
+                    "test": "/api/v1/caption/test"
+                },
+                "ad_copy_generation": { 
                     "ad_copy": "/api/v1/ad-copy",
+                    "get_ad_copy": "/api/v1/ad-copy/{id}",
                     "templates": "/api/v1/templates",
                     "test": "/api/v1/test-ad-copy"
                 },
@@ -187,7 +197,9 @@ async def health_check():
             "auth": "active",
             "contents": "active",
             "image_processing": "active",
-            "ai_generation": "active"  # ← 추가
+            "ai_generation": "active",
+            "caption": "active", 
+            "ad_copy": "active" 
         }
     }
 

@@ -18,12 +18,13 @@ class AdGenerator:
     def __init__(self):
         """OpenAI 클라이언트 초기화"""
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        self.model = "gpt-5-chat-latest" 
+        self.model = "gpt-4o"  # ✨ gpt-5-chat-latest → gpt-4o (안정성)
     
     def _build_prompt(
         self, 
         vision_result: Dict,
         template_name: str,
+        caption: Optional[str] = None,  # ✨ 추가
         user_request: Optional[str] = None
     ) -> str:
         """
@@ -32,6 +33,7 @@ class AdGenerator:
         Args:
             vision_result: Vision AI 분석 결과
             template_name: 선택된 템플릿 이름
+            caption: 확정된 캡션 (AdCaption에서 가져온 값)
             user_request: 사용자 추가 요청 (선택)
         
         Returns:
@@ -51,6 +53,16 @@ class AdGenerator:
         # Few-shot 예시
         examples = self._get_few_shot_examples(template_name)
         
+        # ✨ 캡션 섹션 (있을 경우만)
+        caption_section = ""
+        if caption:
+            caption_section = f"""
+[확정된 광고 캡션]
+{caption}
+
+⚠️ 위 캡션은 이미 확정된 것입니다. 이 캡션을 그대로 "caption" 필드에 사용하세요.
+"""
+        
         prompt = f"""당신은 인스타그램 광고 전문 카피라이터입니다.
 
 [템플릿 스타일: {template_info['name']}]
@@ -64,6 +76,7 @@ class AdGenerator:
 - 핏: {vision_result.get('fit', 'N/A')}
 - 스타일: {', '.join(vision_result.get('style_tags', []))}
 
+{caption_section}
 {f"[사용자 요청사항]\n{user_request}\n" if user_request else ""}
 
 [Few-shot 예시]
@@ -71,7 +84,10 @@ class AdGenerator:
 
 위 정보를 바탕으로 인스타그램 광고 카피를 생성하세요.
 
-⚠️ 중요: 반드시 아래 JSON 형식으로만 응답하세요. 다른 텍스트는 포함하지 마세요.
+⚠️ 중요: 
+1. 반드시 한글로만 작성하세요 (인코딩 깨짐 방지)
+2. 반드시 아래 JSON 형식으로만 응답하세요
+3. 다른 텍스트는 포함하지 마세요
 
 {{
   "headline": "메인 헤드라인 (20자 이내)",
@@ -80,7 +96,7 @@ class AdGenerator:
   "period": "기간 (MM.DD - MM.DD 형식)",
   "brand": "브랜드명 또는 이벤트명 (10자 이내)",
   "event_name": "이벤트명 (bold 템플릿용, 선택)",
-  "caption": "인스타그램 캡션 (이모지 포함, 50자 이내)"
+  "caption": "{caption if caption else '인스타그램 캡션 (이모지 포함, 50자 이내)'}"
 }}"""
         
         return prompt
@@ -170,7 +186,8 @@ class AdGenerator:
     def generate_ad_copy(
         self, 
         vision_result: Dict,
-        user_request: Optional[str] = None
+        user_request: Optional[str] = None,
+        caption: Optional[str] = None  # ✨ 추가
     ) -> Dict:
         """
         GPT-4로 광고 카피 생성
@@ -178,6 +195,7 @@ class AdGenerator:
         Args:
             vision_result: Vision AI 분석 결과
             user_request: 사용자 추가 요청
+            caption: 확정된 캡션 (AdCaption에서 가져온 값)
         
         Returns:
             광고 카피 dict
@@ -188,7 +206,7 @@ class AdGenerator:
         template_name = select_template(style_tags)
         
         # 2. 프롬프트 생성
-        prompt = self._build_prompt(vision_result, template_name, user_request)
+        prompt = self._build_prompt(vision_result, template_name, caption, user_request)
         
         # 3. GPT-4 호출
         try:
@@ -197,7 +215,7 @@ class AdGenerator:
                 messages=[
                     {
                         "role": "system",
-                        "content": "당신은 인스타그램 광고 전문 카피라이터입니다. 반드시 JSON 형식으로만 응답합니다."
+                        "content": "당신은 인스타그램 광고 전문 카피라이터입니다. 반드시 한글로 작성하고 JSON 형식으로만 응답합니다."
                     },
                     {
                         "role": "user",
@@ -205,7 +223,7 @@ class AdGenerator:
                     }
                 ],
                 temperature=0.7,
-                max_completion_tokens=500,
+                max_tokens=500,  # max_completion_tokens → max_tokens
                 response_format={"type": "json_object"}  # JSON 모드 강제
             )
             
@@ -213,7 +231,11 @@ class AdGenerator:
             content = response.choices[0].message.content
             ad_copy = json.loads(content)
             
-            # 5. 템플릿 이름 추가
+            # 5. ✨ 캡션이 제공된 경우 강제로 사용
+            if caption:
+                ad_copy['caption'] = caption
+            
+            # 6. 템플릿 이름 추가
             ad_copy['template_used'] = template_name
             
             return ad_copy
@@ -221,13 +243,19 @@ class AdGenerator:
         except Exception as e:
             print(f"❌ GPT-4 API Error: {e}")
             # 폴백: 기본 카피 반환
-            return self._get_fallback_copy(vision_result, template_name)
+            return self._get_fallback_copy(vision_result, template_name, caption)
     
-    def _get_fallback_copy(self, vision_result: Dict, template_name: str) -> Dict:
+    def _get_fallback_copy(
+        self, 
+        vision_result: Dict, 
+        template_name: str,
+        caption: Optional[str] = None  # ✨ 추가
+    ) -> Dict:
         """
         GPT-4 실패 시 기본 카피 반환
         """
         category = vision_result.get('category', '상품')
+        fallback_caption = caption if caption else f"🎉 {category} 특가 진행 중!"
         
         return {
             "headline": f"{category} 특가",
@@ -236,7 +264,7 @@ class AdGenerator:
             "period": "한정 기간",
             "brand": "SPECIAL SALE",
             "event_name": "특별 이벤트",
-            "caption": f"🎉 {category} 특가 진행 중!",
+            "caption": fallback_caption,
             "template_used": template_name
         }
     
@@ -244,6 +272,7 @@ class AdGenerator:
         self,
         vision_result: Dict,
         image_url: str,
+        caption: Optional[str] = None,  # ✨ 추가
         user_request: Optional[str] = None
     ) -> Dict:
         """
@@ -252,6 +281,7 @@ class AdGenerator:
         Args:
             vision_result: Vision AI 분석 결과
             image_url: 생성된 모델 이미지 URL
+            caption: 확정된 캡션 (선택, AdCaption에서 가져온 값)
             user_request: 사용자 추가 요청
         
         Returns:
@@ -263,7 +293,7 @@ class AdGenerator:
         """
         
         # 1. 광고 카피 생성
-        ad_copy = self.generate_ad_copy(vision_result, user_request)
+        ad_copy = self.generate_ad_copy(vision_result, user_request, caption)  # ✨ caption 전달
         template_name = ad_copy['template_used']
         
         # 2. 템플릿 HTML 가져오기
@@ -306,6 +336,7 @@ if __name__ == "__main__":
     }
     
     test_image_url = "https://storage.googleapis.com/test/model.jpg"
+    test_caption = "클래식한 블랙 울 코트로 겨울 스타일을 완성하세요 ❄️"
     
     print("=" * 50)
     print("광고 카피 생성 테스트")
@@ -314,6 +345,7 @@ if __name__ == "__main__":
     result = generator.generate_html(
         vision_result=test_vision_result,
         image_url=test_image_url,
+        caption=test_caption,  # ✨ 캡션 추가
         user_request="세련된 느낌으로"
     )
     
