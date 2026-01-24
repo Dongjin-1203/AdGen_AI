@@ -16,6 +16,7 @@ from app.api.routes import processing as image
 from app.api.routes import history
 from app.api.routes import ai_generate
 from app.api.routes import ad_copy
+from app.models import caption_system
 
 # ===== 로깅 설정 =====
 logging.basicConfig(
