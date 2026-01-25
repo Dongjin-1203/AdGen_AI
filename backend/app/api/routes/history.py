@@ -5,8 +5,11 @@
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from typing import List
+import zipfile
+from io import BytesIO
 from datetime import datetime
 
 from app.db.base import get_db
@@ -140,3 +143,215 @@ async def delete_history(
         "message": "History deleted successfully",
         "history_id": history_id
     }
+
+def download_from_gcs(image_url: str) -> bytes:
+    """
+    GCS에서 이미지 다운로드
+    
+    Args:
+        image_url: GCS URL (예: https://storage.googleapis.com/bucket/path/file.png)
+    
+    Returns:
+        이미지 바이트
+    """
+    from google.cloud import storage
+    from google.oauth2 import service_account
+    from config import settings
+    
+    # GCS 클라이언트
+    if settings.GOOGLE_APPLICATION_CREDENTIALS:
+        credentials = service_account.Credentials.from_service_account_file(
+            settings.GOOGLE_APPLICATION_CREDENTIALS
+        )
+        client = storage.Client(credentials=credentials)
+    else:
+        client = storage.Client()
+    
+    # URL에서 버킷명과 경로 추출
+    # https://storage.googleapis.com/bucket-name/user_id/generations/file.png
+    parts = image_url.replace("https://storage.googleapis.com/", "").split("/")
+    bucket_name = parts[0]
+    gcs_path = "/".join(parts[1:])
+    
+    bucket = client.bucket(bucket_name)
+    blob = bucket.blob(gcs_path)
+    
+    # 다운로드
+    image_bytes = blob.download_as_bytes()
+    
+    return image_bytes
+
+@router.get("/history/{history_id}/download")
+async def download_vton_result(
+    history_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    VTON 결과 이미지 다운로드 (단일)
+    
+    Args:
+        history_id: GenerationHistory ID
+    
+    Returns:
+        PNG 이미지 파일
+    """
+    
+    print(f"\n📥 VTON 이미지 다운로드 요청: {history_id}")
+    
+    # 1. GenerationHistory 조회
+    history = db.query(GenerationHistory).filter(
+        GenerationHistory.history_id == history_id,
+        GenerationHistory.user_id == current_user.user_id
+    ).first()
+    
+    if not history:
+        raise HTTPException(
+            status_code=404,
+            detail="히스토리를 찾을 수 없거나 접근 권한이 없습니다."
+        )
+    
+    if not history.result_url:
+        raise HTTPException(
+            status_code=400,
+            detail="이미지 URL이 없습니다."
+        )
+    
+    # 2. GCS에서 이미지 다운로드
+    try:
+        image_bytes = download_from_gcs(history.result_url)
+        print(f"✅ 이미지 다운로드 완료: {len(image_bytes)} bytes")
+    except Exception as e:
+        print(f"❌ GCS 다운로드 실패: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"이미지 다운로드 실패: {str(e)}"
+        )
+    
+    # 3. 파일명 생성
+    created_date = history.created_at.strftime("%Y%m%d")
+    filename = f"vton_{history.style}_{created_date}_{history_id[:8]}.png"
+    
+    # 4. 다운로드 응답
+    return Response(
+        content=image_bytes,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Length": str(len(image_bytes))
+        }
+    )
+
+
+@router.post("/history/download-batch")
+async def download_multiple_vton_results(
+    history_ids: List[str],
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    여러 VTON 결과를 ZIP으로 일괄 다운로드
+    
+    Args:
+        history_ids: GenerationHistory ID 목록
+    
+    Returns:
+        ZIP 파일
+    """
+    
+    print(f"\n📦 일괄 다운로드 요청: {len(history_ids)}개")
+    
+    if len(history_ids) > 50:
+        raise HTTPException(
+            status_code=400,
+            detail="한 번에 최대 50개까지만 다운로드 가능합니다."
+        )
+    
+    # ZIP 파일 생성
+    zip_buffer = BytesIO()
+    
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+        for idx, history_id in enumerate(history_ids, 1):
+            # 히스토리 조회
+            history = db.query(GenerationHistory).filter(
+                GenerationHistory.history_id == history_id,
+                GenerationHistory.user_id == current_user.user_id
+            ).first()
+            
+            if not history or not history.result_url:
+                print(f"⚠️ {history_id}: 건너뜀 (없거나 URL 없음)")
+                continue
+            
+            try:
+                # GCS에서 다운로드
+                image_bytes = download_from_gcs(history.result_url)
+                
+                # ZIP에 추가
+                created_date = history.created_at.strftime("%Y%m%d")
+                filename = f"{idx:02d}_vton_{history.style}_{created_date}.png"
+                zip_file.writestr(filename, image_bytes)
+                
+                print(f"✅ {idx}/{len(history_ids)}: {filename} 추가")
+                
+            except Exception as e:
+                print(f"❌ {history_id} 실패: {e}")
+                continue
+    
+    # ZIP 버퍼 되돌리기
+    zip_buffer.seek(0)
+    
+    # 다운로드 응답
+    return Response(
+        content=zip_buffer.getvalue(),
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename=vton_results_{len(history_ids)}.zip"
+        }
+    )
+
+
+@router.get("/history/{history_id}/preview")
+async def preview_vton_result(
+    history_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    VTON 결과 이미지 미리보기 (다운로드 없이)
+    
+    Args:
+        history_id: GenerationHistory ID
+    
+    Returns:
+        PNG 이미지 (inline)
+    """
+    
+    # GenerationHistory 조회
+    history = db.query(GenerationHistory).filter(
+        GenerationHistory.history_id == history_id,
+        GenerationHistory.user_id == current_user.user_id
+    ).first()
+    
+    if not history:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    if not history.result_url:
+        raise HTTPException(status_code=400, detail="No image URL")
+    
+    # GCS에서 이미지 다운로드
+    try:
+        image_bytes = download_from_gcs(history.result_url)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load image: {str(e)}"
+        )
+    
+    # 미리보기 응답 (inline)
+    return Response(
+        content=image_bytes,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": "inline"  # 다운로드 대신 표시
+        }
+    )

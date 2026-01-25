@@ -3,10 +3,12 @@
 
 ✨ 변경: Minimal 템플릿만 생성하고 DB에 즉시 저장
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import json
 import uuid
 import time
@@ -19,7 +21,6 @@ from app.services.html.ad_generator import AdGenerator
 from app.templates.ad_templates import AD_TEMPLATES
 
 router = APIRouter()
-
 
 # ========== Request/Response Models ==========
 
@@ -59,6 +60,29 @@ class AdCopyResponse(BaseModel):
             }
         }
 
+class AdCopyHistoryItem(BaseModel):
+    """광고 카피 히스토리 단일 항목"""
+    ad_copy_id: str
+    template_used: str
+    ad_copy_data: dict
+    final_image_url: Optional[str]
+    created_at: str
+    
+    # 추가 정보
+    product_name: Optional[str]
+    category: Optional[str]
+    model_image_url: Optional[str]
+    
+    class Config:
+        from_attributes = True
+
+
+class AdCopyHistoryResponse(BaseModel):
+    """광고 카피 히스토리 응답"""
+    results: List[AdCopyHistoryItem]
+    total: int
+    page: int
+    total_pages: int
 
 # ========== API Endpoints ==========
 
@@ -301,3 +325,274 @@ async def test_ad_copy_generation(
             "template_name": template_name,
             "error": str(e)
         }
+    
+@router.get("/ad-copy-history", response_model=AdCopyHistoryResponse)
+async def get_ad_copy_history(
+    page: int = Query(1, ge=1, description="페이지 번호"),
+    limit: int = Query(12, ge=1, le=50, description="페이지당 항목 수"),
+    template: Optional[str] = Query(None, description="템플릿 필터 (minimal, bold, vintage)"),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    광고 카피 히스토리 조회
+    
+    - 페이지네이션 지원
+    - 템플릿별 필터링 가능
+    - 최신순 정렬
+    
+    Args:
+        page: 페이지 번호 (1부터 시작)
+        limit: 페이지당 항목 수 (기본 12개)
+        template: 템플릿 필터 (optional)
+    
+    Returns:
+        AdCopyHistoryResponse
+    """
+    
+    print(f"\n📋 광고 카피 히스토리 조회 - Page: {page}, Limit: {limit}")
+    
+    offset = (page - 1) * limit
+    
+    # 기본 쿼리
+    query = db.query(AdCopyHistory)\
+        .join(UserContent, AdCopyHistory.content_id == UserContent.content_id)\
+        .join(GenerationHistory, AdCopyHistory.generation_id == GenerationHistory.history_id)\
+        .filter(AdCopyHistory.user_id == current_user.user_id)
+    
+    # 템플릿 필터
+    if template:
+        query = query.filter(AdCopyHistory.template_used == template)
+    
+    # 총 개수
+    total = query.count()
+    
+    # 데이터 조회 (최신순)
+    ad_copies = query\
+        .order_by(AdCopyHistory.created_at.desc())\
+        .offset(offset)\
+        .limit(limit)\
+        .all()
+    
+    # 응답 데이터 구성
+    results = []
+    for ad_copy in ad_copies:
+        results.append(AdCopyHistoryItem(
+            ad_copy_id=ad_copy.ad_copy_id,
+            template_used=ad_copy.template_used,
+            ad_copy_data=ad_copy.ad_copy_data,
+            final_image_url=ad_copy.final_image_url,
+            created_at=ad_copy.created_at.isoformat(),
+            # 추가 정보
+            product_name=ad_copy.content.product_name,
+            category=ad_copy.content.category,
+            model_image_url=ad_copy.generation.result_url
+        ))
+    
+    total_pages = (total + limit - 1) // limit
+    
+    print(f"✅ 조회 완료: {len(results)}개 (전체 {total}개)")
+    
+    return AdCopyHistoryResponse(
+        results=results,
+        total=total,
+        page=page,
+        total_pages=total_pages
+    )
+
+
+@router.get("/ad-copy-history/{ad_copy_id}")
+async def get_ad_copy_detail(
+    ad_copy_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    광고 카피 상세 조회
+    
+    Args:
+        ad_copy_id: AdCopyHistory ID
+    
+    Returns:
+        상세 정보 (HTML 포함)
+    """
+    
+    ad_copy = db.query(AdCopyHistory)\
+        .join(UserContent, AdCopyHistory.content_id == UserContent.content_id)\
+        .join(GenerationHistory, AdCopyHistory.generation_id == GenerationHistory.history_id)\
+        .filter(
+            AdCopyHistory.ad_copy_id == ad_copy_id,
+            AdCopyHistory.user_id == current_user.user_id
+        ).first()
+    
+    if not ad_copy:
+        raise HTTPException(
+            status_code=404,
+            detail="광고를 찾을 수 없거나 접근 권한이 없습니다."
+        )
+    
+    return {
+        "ad_copy_id": ad_copy.ad_copy_id,
+        "template_used": ad_copy.template_used,
+        "ad_copy_data": ad_copy.ad_copy_data,
+        "html_content": ad_copy.html_content,
+        "final_image_url": ad_copy.final_image_url,
+        "created_at": ad_copy.created_at.isoformat(),
+        "processing_time": ad_copy.processing_time,
+        # 추가 정보
+        "product_name": ad_copy.content.product_name,
+        "category": ad_copy.content.category,
+        "color": ad_copy.content.color,
+        "model_image_url": ad_copy.generation.result_url,
+        "style": ad_copy.generation.style
+    }
+
+
+@router.get("/ad-copy-history/{ad_copy_id}/download")
+async def download_ad_copy_image(
+    ad_copy_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    광고 카피 최종 이미지 다운로드
+    
+    Args:
+        ad_copy_id: AdCopyHistory ID
+    
+    Returns:
+        PNG 이미지 파일
+    """
+    
+    print(f"\n📥 광고 이미지 다운로드 요청: {ad_copy_id}")
+    
+    # AdCopyHistory 조회
+    ad_copy = db.query(AdCopyHistory).filter(
+        AdCopyHistory.ad_copy_id == ad_copy_id,
+        AdCopyHistory.user_id == current_user.user_id
+    ).first()
+    
+    if not ad_copy:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    if not ad_copy.final_image_url:
+        raise HTTPException(
+            status_code=400,
+            detail="최종 이미지가 아직 생성되지 않았습니다."
+        )
+    
+    # GCS에서 이미지 다운로드
+    from app.api.routes.history import download_from_gcs  # 재사용
+    
+    try:
+        image_bytes = download_from_gcs(ad_copy.final_image_url)
+        print(f"✅ 이미지 다운로드 완료: {len(image_bytes)} bytes")
+    except Exception as e:
+        print(f"❌ GCS 다운로드 실패: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"이미지 다운로드 실패: {str(e)}"
+        )
+    
+    # 파일명 생성
+    created_date = ad_copy.created_at.strftime("%Y%m%d")
+    headline = ad_copy.ad_copy_data.get('headline', 'ad')[:20]  # 헤드라인 일부 사용
+    filename = f"ad_{ad_copy.template_used}_{headline}_{created_date}.png"
+    
+    # 다운로드 응답
+    return Response(
+        content=image_bytes,
+        media_type="image/png",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}",
+            "Content-Length": str(len(image_bytes))
+        }
+    )
+
+
+@router.delete("/ad-copy-history/{ad_copy_id}")
+async def delete_ad_copy(
+    ad_copy_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    광고 카피 삭제
+    
+    Args:
+        ad_copy_id: AdCopyHistory ID
+    
+    Returns:
+        삭제 성공 메시지
+    """
+    
+    # AdCopyHistory 조회
+    ad_copy = db.query(AdCopyHistory).filter(
+        AdCopyHistory.ad_copy_id == ad_copy_id,
+        AdCopyHistory.user_id == current_user.user_id
+    ).first()
+    
+    if not ad_copy:
+        raise HTTPException(status_code=404, detail="Not found")
+    
+    # 삭제
+    db.delete(ad_copy)
+    db.commit()
+    
+    print(f"🗑️  광고 카피 삭제 완료: {ad_copy_id}")
+    
+    return {
+        "success": True,
+        "message": "광고가 삭제되었습니다.",
+        "ad_copy_id": ad_copy_id
+    }
+
+
+@router.get("/ad-copy-statistics")
+async def get_ad_copy_statistics(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    광고 카피 통계
+    
+    - 총 생성 개수
+    - 템플릿별 개수
+    - 최근 7일 생성 개수
+    
+    Returns:
+        통계 정보
+    """
+    from datetime import datetime, timedelta
+    
+    # 총 개수
+    total_count = db.query(func.count(AdCopyHistory.ad_copy_id))\
+        .filter(AdCopyHistory.user_id == current_user.user_id)\
+        .scalar()
+    
+    # 템플릿별 개수
+    template_counts = db.query(
+        AdCopyHistory.template_used,
+        func.count(AdCopyHistory.ad_copy_id)
+    ).filter(
+        AdCopyHistory.user_id == current_user.user_id
+    ).group_by(
+        AdCopyHistory.template_used
+    ).all()
+    
+    # 최근 7일
+    seven_days_ago = datetime.now() - timedelta(days=7)
+    recent_count = db.query(func.count(AdCopyHistory.ad_copy_id))\
+        .filter(
+            AdCopyHistory.user_id == current_user.user_id,
+            AdCopyHistory.created_at >= seven_days_ago
+        ).scalar()
+    
+    return {
+        "total_count": total_count,
+        "template_counts": {
+            template: count for template, count in template_counts
+        },
+        "recent_7days_count": recent_count,
+        "average_per_day": round(recent_count / 7, 1) if recent_count > 0 else 0
+    }
