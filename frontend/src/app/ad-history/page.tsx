@@ -52,7 +52,7 @@ export default function AdCopyHistoryPage() {
     fetchAdCopyHistory();
   }, [page, selectedTemplate]);
 
-  // 통계 조회 (api 사용)
+  // 통계 조회
   const fetchStatistics = async () => {
     try {
       const response = await api.get('/api/v1/ad-copy-statistics');
@@ -65,7 +65,7 @@ export default function AdCopyHistoryPage() {
     }
   };
 
-  // 히스토리 조회 (api 사용)
+  // 히스토리 조회
   const fetchAdCopyHistory = async () => {
     setLoading(true);
     setError('');
@@ -96,7 +96,35 @@ export default function AdCopyHistoryPage() {
     }
   };
 
-  // 이미지 다운로드 (api 사용)
+  // 삭제 기능
+  const deleteAdCopy = async (adCopyId: string) => {
+    if (!confirm('정말 삭제하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/v1/ad-copy-history/${adCopyId}`);
+      
+      // 목록에서 제거
+      setAdCopies(adCopies.filter(ad => ad.ad_copy_id !== adCopyId));
+      
+      // 통계 갱신
+      fetchStatistics();
+      
+      alert('삭제되었습니다.');
+      console.log('✅ 광고 삭제 완료:', adCopyId);
+    } catch (error: any) {
+      console.error('❌ 삭제 실패:', error);
+      if (error.response?.status === 401) {
+        alert('인증이 만료되었습니다. 다시 로그인해주세요.');
+        router.push('/login');
+      } else {
+        alert('삭제에 실패했습니다.');
+      }
+    }
+  };
+
+  // 이미지 다운로드
   const downloadImage = async (adCopyId: string, headline: string) => {
     try {
       const response = await api.get(
@@ -126,29 +154,9 @@ export default function AdCopyHistoryPage() {
     }
   };
 
-  // 상세보기 (api 사용)
-  const viewDetail = async (adCopyId: string) => {
-    try {
-      const response = await api.get(`/api/v1/ad-copy-history/${adCopyId}`);
-      const data = response.data;
-      
-      // 모달이나 새 페이지로 상세 정보 표시
-      alert(`
-광고 ID: ${data.ad_copy_id}
-템플릿: ${data.template_used}
-제품명: ${data.product_name}
-카테고리: ${data.category}
-처리 시간: ${data.processing_time}초
-      `);
-    } catch (error: any) {
-      console.error('상세 조회 실패:', error);
-      if (error.response?.status === 401) {
-        alert('인증이 만료되었습니다. 다시 로그인해주세요.');
-        router.push('/login');
-      } else {
-        alert('상세 정보를 불러올 수 없습니다.');
-      }
-    }
+  // ✅ 상세보기 - 상세 페이지로 이동
+  const viewDetail = (adCopyId: string) => {
+    router.push(`/ad-history/${adCopyId}`);
   };
 
   return (
@@ -267,8 +275,29 @@ export default function AdCopyHistoryPage() {
                 {adCopies.map((ad) => (
                   <div
                     key={ad.ad_copy_id}
-                    className="bg-white border rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                    className="bg-white border rounded-lg overflow-hidden hover:shadow-lg transition-shadow relative"
                   >
+                    {/* 삭제 버튼 */}
+                    <button
+                      onClick={() => deleteAdCopy(ad.ad_copy_id)}
+                      className="absolute top-2 right-2 z-10 bg-red-500 text-white rounded-full p-2 hover:bg-red-600 transition shadow-lg"
+                      title="삭제"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M6 18L18 6M6 6l12 12"
+                        />
+                      </svg>
+                    </button>
+
                     {/* 최종 이미지 */}
                     {ad.final_image_url ? (
                       <div className="aspect-square bg-gray-100 relative">
