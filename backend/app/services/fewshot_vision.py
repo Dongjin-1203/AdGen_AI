@@ -54,13 +54,12 @@ class FewShotVisionAnalyzer:
         for score, content in high_score_samples:
             examples.append({
                 "category": content.category,
+                "sub_category": content.sub_category,
                 "color": content.color,
                 "material": content.material,
                 "fit": content.fit,
                 "style_tags": content.style_tags,
-                "pattern": content.pattern,
-                "reward_score": score.reward_score,
-                "description": self._generate_description(content)
+                "reward_score": score.reward_score
             })
         
         return examples
@@ -104,14 +103,12 @@ class FewShotVisionAnalyzer:
         
         for i, ex in enumerate(examples, 1):
             prompt += f"=== Example {i} (Accuracy: {ex['reward_score']}/6) ===\n"
-            prompt += f"Product: {ex['description']}\n"
-            prompt += f"Analysis:\n"
-            prompt += f"  - Category: {ex['category']}\n"
-            prompt += f"  - Color: {ex['color']}\n"
-            prompt += f"  - Material: {ex['material']}\n"
-            prompt += f"  - Fit: {ex['fit']}\n"
-            prompt += f"  - Style Tags: {ex['style_tags']}\n"
-            prompt += f"  - Pattern: {ex['pattern']}\n\n"
+            prompt += f"Category: {ex['category']}\n"
+            prompt += f"Sub-category: {ex['sub_category']}\n"
+            prompt += f"Color: {ex['color']}\n"
+            prompt += f"Material: {ex['material']}\n"
+            prompt += f"Fit: {ex['fit']}\n"
+            prompt += f"Style Tags: {ex['style_tags']}\n\n"
         
         prompt += "Now analyze the new product image with the SAME LEVEL OF ACCURACY.\n"
         prompt += "Follow the exact format shown in the examples above.\n"
@@ -121,7 +118,6 @@ class FewShotVisionAnalyzer:
         prompt += "3. Correct material recognition\n"
         prompt += "4. Appropriate fit description\n"
         prompt += "5. Relevant style tags\n"
-        prompt += "6. Clear pattern identification\n"
         
         return prompt
     
