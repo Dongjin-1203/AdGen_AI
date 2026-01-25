@@ -2,22 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { authAPI, API_URL } from '@/lib/api';
-import axios from 'axios';
-
-// ✅ lib/api.ts와 동일한 axios 인스턴스 생성
-const apiClient = axios.create({
-  baseURL: API_URL,
-});
-
-// token을 자동으로 추가하는 interceptor
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+import { authAPI, api, API_URL } from '@/lib/api';
 
 // ===== 타입 정의 =====
 interface AdCopyData {
@@ -67,10 +52,10 @@ export default function AdCopyHistoryPage() {
     fetchAdCopyHistory();
   }, [page, selectedTemplate]);
 
-  // 통계 조회 (apiClient 사용)
+  // 통계 조회 (api 사용)
   const fetchStatistics = async () => {
     try {
-      const response = await apiClient.get('/api/v1/ad-copy-statistics');
+      const response = await api.get('/api/v1/ad-copy-statistics');
       setStatistics(response.data);
     } catch (error: any) {
       console.error('통계 조회 실패:', error);
@@ -80,7 +65,7 @@ export default function AdCopyHistoryPage() {
     }
   };
 
-  // 히스토리 조회 (apiClient 사용)
+  // 히스토리 조회 (api 사용)
   const fetchAdCopyHistory = async () => {
     setLoading(true);
     setError('');
@@ -95,7 +80,7 @@ export default function AdCopyHistoryPage() {
         params.template = selectedTemplate;
       }
 
-      const response = await apiClient.get('/api/v1/ad-copy-history', { params });
+      const response = await api.get('/api/v1/ad-copy-history', { params });
       setAdCopies(response.data.results);
       setTotalPages(response.data.total_pages);
     } catch (error: any) {
@@ -111,10 +96,10 @@ export default function AdCopyHistoryPage() {
     }
   };
 
-  // 이미지 다운로드 (apiClient 사용)
+  // 이미지 다운로드 (api 사용)
   const downloadImage = async (adCopyId: string, headline: string) => {
     try {
-      const response = await apiClient.get(
+      const response = await api.get(
         `/api/v1/ad-copy-history/${adCopyId}/download`,
         { responseType: 'blob' }
       );
@@ -141,10 +126,10 @@ export default function AdCopyHistoryPage() {
     }
   };
 
-  // 상세보기 (apiClient 사용)
+  // 상세보기 (api 사용)
   const viewDetail = async (adCopyId: string) => {
     try {
-      const response = await apiClient.get(`/api/v1/ad-copy-history/${adCopyId}`);
+      const response = await api.get(`/api/v1/ad-copy-history/${adCopyId}`);
       const data = response.data;
       
       // 모달이나 새 페이지로 상세 정보 표시

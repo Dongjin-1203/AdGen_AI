@@ -45,6 +45,9 @@ api.interceptors.response.use(
   }
 );
 
+// ✅ api 객체 export 추가
+export { api };
+
 export const authAPI = {
   signup: (data: SignupRequest) => api.post<User>('/api/auth/signup', data),
   login: (data: FormData) => api.post<Token>('/api/auth/login', data),
@@ -55,8 +58,8 @@ export const contentAPI = {
   upload: (formData: FormData) => api.post<Content>('/api/contents/upload', formData),
   getAll: () => api.get<Content[]>('/api/contents'),
   getOne: (id: string) => api.get<Content>(`/api/contents/${id}`),
-  update: (id: string, data: any) => api.patch(`/api/contents/${id}`, data),  // 🆕
-  delete: (id: string) => api.delete(`/api/contents/${id}`),  // 🆕
+  update: (id: string, data: any) => api.patch(`/api/contents/${id}`, data),
+  delete: (id: string) => api.delete(`/api/contents/${id}`),
 };
 
 export const historyAPI = {

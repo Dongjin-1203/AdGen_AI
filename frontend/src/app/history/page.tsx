@@ -2,29 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { historyAPI, authAPI, API_URL } from '@/lib/api';
+import { historyAPI, authAPI, api, API_URL } from '@/lib/api';
 import { History } from '@/types';
-
-// ✅ lib/api.ts에서 제공하는 axios 인스턴스 import
-// 방법 1: api 객체가 export되어 있으면
-import { api } from '@/lib/api';
-
-// 방법 2: api 객체가 없으면 axios를 직접 사용하되 같은 설정 적용
-import axios from 'axios';
-
-// lib/api.ts에서 사용하는 것과 동일한 axios 인스턴스 생성
-const apiClient = axios.create({
-  baseURL: API_URL,
-});
-
-// token을 자동으로 추가하는 interceptor
-apiClient.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -76,11 +55,11 @@ export default function HistoryPage() {
     }
   };
 
-  // ===== 단일 다운로드 (apiClient 사용) =====
+  // ===== 단일 다운로드 (api 사용) =====
   const downloadVTONImage = async (historyId: string, style: string, createdAt: string) => {
     try {
-      // ✅ apiClient 사용 (interceptor 적용됨)
-      const response = await apiClient.get(
+      // ✅ export된 api 사용
+      const response = await api.get(
         `/api/v1/history/${historyId}/download`,
         { responseType: 'blob' }
       );
@@ -120,7 +99,7 @@ export default function HistoryPage() {
     }
 
     try {
-      const response = await apiClient.post(
+      const response = await api.post(
         `/api/v1/history/download-batch`,
         historyIds,
         { responseType: 'blob' }
