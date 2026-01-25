@@ -659,9 +659,6 @@ async def get_fewshot_statistics(
     # 카테고리별 통계
     category_stats = fewshot.get_category_statistics()
     
-    # 필드별 오류 패턴
-    error_patterns = fewshot.get_field_error_patterns()
-    
     # 전체 통계
     total_examples = sum(
         stats['high_quality_examples'] 
@@ -683,8 +680,7 @@ async def get_fewshot_statistics(
             ),
             "total_categories": len(category_stats)
         },
-        "category_statistics": category_stats,
-        "error_patterns": error_patterns
+        "category_statistics": category_stats
     }
 
 
