@@ -2,16 +2,14 @@
 
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useState } from 'react';
 import { useAuthStore } from '@/lib/store';
 
-export default function NavbarWithDropdown() {
+export default function Navbar() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
 
   const handleLogout = () => {
-    logout();
+    logout();  // ⭐ localStorage.removeItem 제거 (Zustand가 자동 처리)
     router.push('/login');
   };
 
@@ -42,43 +40,19 @@ export default function NavbarWithDropdown() {
             >
               갤러리
             </Link>
-            
-            {/* 히스토리 드롭다운 */}
-            <div 
-              className="relative"
-              onMouseEnter={() => setIsHistoryOpen(true)}
-              onMouseLeave={() => setIsHistoryOpen(false)}
+            <Link
+              href="/history"
+              className="text-gray-700 hover:text-blue-600 font-medium transition"
             >
-              <button className="text-gray-700 hover:text-blue-600 font-medium transition flex items-center gap-1">
-                히스토리
-                <svg 
-                  className={`w-4 h-4 transition-transform ${isHistoryOpen ? 'rotate-180' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              
-              {/* 드롭다운 메뉴 */}
-              {isHistoryOpen && (
-                <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
-                  <Link
-                    href="/history"
-                    className="block px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition"
-                  >
-                    🎨 VTON 히스토리
-                  </Link>
-                  <Link
-                    href="/ad-history"
-                    className="block px-4 py-3 text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition border-t border-gray-100"
-                  >
-                    📋 광고 히스토리
-                  </Link>
-                </div>
-              )}
-            </div>
+              VTON 히스토리
+            </Link>
+            {/* ✨ 광고 히스토리 추가 */}
+            <Link
+              href="/ad-history"
+              className="text-gray-700 hover:text-blue-600 font-medium transition"
+            >
+              📋 광고 히스토리
+            </Link>
             
             {user && (
               <div className="flex items-center gap-4 pl-4 border-l border-gray-300">

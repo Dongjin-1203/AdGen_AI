@@ -3,9 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { useAuthStore } from '@/lib/store';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { authAPI, API_URL } from '@/lib/api';
 
 // ===== 타입 정의 =====
 interface AdCopyData {
@@ -40,7 +38,6 @@ interface Statistics {
 // ===== 메인 컴포넌트 =====
 export default function AdCopyHistoryPage() {
   const router = useRouter();
-  const { token, user } = useAuthStore();
 
   const [adCopies, setAdCopies] = useState<AdCopyHistoryItem[]>([]);
   const [statistics, setStatistics] = useState<Statistics | null>(null);
@@ -48,25 +45,25 @@ export default function AdCopyHistoryPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // ===== 인증 헤더 가져오기 =====
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
 
   // 초기화
   useEffect(() => {
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-
     fetchStatistics();
     fetchAdCopyHistory();
-  }, [token, page, selectedTemplate]);
+  }, [page, selectedTemplate]);
 
   // 통계 조회
   const fetchStatistics = async () => {
     try {
       const response = await fetch(`${API_URL}/api/v1/ad-copy-statistics`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: getAuthHeaders()
       });
 
       if (response.ok) {
@@ -81,6 +78,7 @@ export default function AdCopyHistoryPage() {
   // 히스토리 조회
   const fetchAdCopyHistory = async () => {
     setLoading(true);
+    setError('');
 
     try {
       const params = new URLSearchParams({
@@ -95,9 +93,7 @@ export default function AdCopyHistoryPage() {
       const response = await fetch(
         `${API_URL}/api/v1/ad-copy-history?${params}`,
         {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: getAuthHeaders()
         }
       );
 
@@ -105,9 +101,12 @@ export default function AdCopyHistoryPage() {
         const data = await response.json();
         setAdCopies(data.results);
         setTotalPages(data.total_pages);
+      } else {
+        throw new Error('히스토리 조회 실패');
       }
     } catch (error) {
       console.error('히스토리 조회 실패:', error);
+      setError('광고 히스토리를 불러올 수 없습니다.');
     } finally {
       setLoading(false);
     }
@@ -119,9 +118,7 @@ export default function AdCopyHistoryPage() {
       const response = await fetch(
         `${API_URL}/api/v1/ad-copy-history/${adCopyId}/download`,
         {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: getAuthHeaders()
         }
       );
 
@@ -147,8 +144,31 @@ export default function AdCopyHistoryPage() {
   };
 
   // 상세보기
-  const viewDetail = (adCopyId: string) => {
-    router.push(`/ad-detail/${adCopyId}`);
+  const viewDetail = async (adCopyId: string) => {
+    try {
+      const response = await fetch(
+        `${API_URL}/api/v1/ad-copy-history/${adCopyId}`,
+        {
+          headers: getAuthHeaders()
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // 모달이나 새 페이지로 상세 정보 표시
+        alert(`
+광고 ID: ${data.ad_copy_id}
+템플릿: ${data.template_used}
+제품명: ${data.product_name}
+카테고리: ${data.category}
+처리 시간: ${data.processing_time}초
+        `);
+      }
+    } catch (error) {
+      console.error('상세 조회 실패:', error);
+      alert('상세 정보를 불러올 수 없습니다.');
+    }
   };
 
   return (
@@ -207,7 +227,10 @@ export default function AdCopyHistoryPage() {
         {/* 필터 */}
         <div className="flex gap-2 mb-6">
           <button
-            onClick={() => setSelectedTemplate('')}
+            onClick={() => {
+              setSelectedTemplate('');
+              setPage(1);
+            }}
             className={`px-4 py-2 rounded-lg ${
               selectedTemplate === ''
                 ? 'bg-purple-600 text-white'
@@ -217,7 +240,10 @@ export default function AdCopyHistoryPage() {
             전체
           </button>
           <button
-            onClick={() => setSelectedTemplate('minimal')}
+            onClick={() => {
+              setSelectedTemplate('minimal');
+              setPage(1);
+            }}
             className={`px-4 py-2 rounded-lg ${
               selectedTemplate === 'minimal'
                 ? 'bg-purple-600 text-white'
@@ -228,6 +254,13 @@ export default function AdCopyHistoryPage() {
           </button>
         </div>
 
+        {/* 에러 */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg mb-6">
+            {error}
+          </div>
+        )}
+
         {/* 로딩 */}
         {loading && (
           <div className="flex justify-center items-center py-20">
@@ -236,7 +269,7 @@ export default function AdCopyHistoryPage() {
         )}
 
         {/* 광고 카피 그리드 */}
-        {!loading && (
+        {!loading && !error && (
           <>
             {adCopies.length === 0 ? (
               <div className="text-center py-20">
@@ -259,11 +292,10 @@ export default function AdCopyHistoryPage() {
                     {/* 최종 이미지 */}
                     {ad.final_image_url ? (
                       <div className="aspect-square bg-gray-100 relative">
-                        <Image
+                        <img
                           src={ad.final_image_url}
                           alt={ad.ad_copy_data.headline}
-                          fill
-                          className="object-cover"
+                          className="w-full h-full object-cover"
                         />
                       </div>
                     ) : (
@@ -283,7 +315,7 @@ export default function AdCopyHistoryPage() {
                       </h3>
 
                       {/* 광고 데이터 */}
-                      <div className="flex gap-2 mb-3">
+                      <div className="flex gap-2 mb-3 flex-wrap">
                         {ad.ad_copy_data.discount && (
                           <span className="text-sm bg-red-100 text-red-600 px-2 py-1 rounded">
                             {ad.ad_copy_data.discount}
@@ -294,11 +326,16 @@ export default function AdCopyHistoryPage() {
                             {ad.ad_copy_data.period}
                           </span>
                         )}
+                        {ad.ad_copy_data.brand && (
+                          <span className="text-sm bg-purple-100 text-purple-600 px-2 py-1 rounded">
+                            {ad.ad_copy_data.brand}
+                          </span>
+                        )}
                       </div>
 
                       {/* 메타 정보 */}
                       <div className="flex justify-between items-center text-xs text-gray-500 mb-4">
-                        <span>{ad.category}</span>
+                        <span>{ad.category || '미분류'}</span>
                         <span>
                           {new Date(ad.created_at).toLocaleDateString('ko-KR')}
                         </span>

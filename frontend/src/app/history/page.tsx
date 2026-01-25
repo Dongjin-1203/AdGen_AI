@@ -57,13 +57,18 @@ export default function HistoryPage() {
     }
   };
 
-  // ===== 단일 다운로드 (historyAPI 사용) =====
+  // ===== 인증 헤더 가져오기 =====
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+  };
+
+  // ===== 단일 다운로드 =====
   const downloadVTONImage = async (historyId: string, style: string, createdAt: string) => {
     try {
-      // historyAPI를 사용하면 내부적으로 인증 처리됨
       const response = await fetch(`${API_URL}/api/v1/history/${historyId}/download`, {
         method: 'GET',
-        headers: historyAPI.defaults?.headers || {}  // 기존 헤더 사용
+        headers: getAuthHeaders()
       });
 
       if (!response.ok) {
@@ -104,7 +109,7 @@ export default function HistoryPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(historyAPI.defaults?.headers || {})
+          ...getAuthHeaders()
         },
         body: JSON.stringify(historyIds)
       });
