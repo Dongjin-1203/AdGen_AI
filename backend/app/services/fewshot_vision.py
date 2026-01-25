@@ -26,11 +26,18 @@ class FewShotVisionAnalyzer:
         category: str, 
         limit: int = 5
     ) -> List[Dict]:
-        """카테고리별 고품질 예시 가져오기"""
-        # 최근 3개월 데이터만 사용 (신선도 유지)
-        three_months_ago = datetime.now() - timedelta(days=90)
+        """
+        카테고리별 고품질 예시 가져오기
         
-        # 보상 점수 5점 이상 + 같은 카테고리
+        Args:
+            category: 제품 카테고리 (상의/하의/드레스/아우터)
+            limit: 가져올 예시 개수
+            
+        Returns:
+            고품질 분석 예시 리스트
+        """
+        
+        # 보상 점수 5점 이상 + 같은 카테고리 (시간 제약 없음)
         high_score_samples = self.db.query(
             RewardScore,
             UserContent
@@ -38,11 +45,9 @@ class FewShotVisionAnalyzer:
             UserContent, RewardScore.content_id == UserContent.content_id
         ).filter(
             RewardScore.reward_score >= self.min_score,
-            UserContent.category == category,
-            RewardScore.created_at >= three_months_ago
+            UserContent.category == category
         ).order_by(
-            RewardScore.reward_score.desc(),
-            RewardScore.created_at.desc()
+            RewardScore.reward_score.desc()
         ).limit(limit).all()
         
         examples = []
@@ -79,7 +84,15 @@ class FewShotVisionAnalyzer:
         return " ".join(desc_parts)
     
     def build_fewshot_prompt(self, category: str) -> Optional[str]:
-        """Few-shot 프롬프트 생성"""
+        """
+        Few-shot 프롬프트 생성
+        
+        Args:
+            category: 제품 카테고리
+            
+        Returns:
+            Few-shot 프롬프트 문자열 (예시가 없으면 None)
+        """
         examples = self.get_high_quality_examples(category, self.max_examples)
         
         if len(examples) < self.min_examples:
@@ -198,7 +211,17 @@ class EnhancedVisionAnalyzer:
         category: str = None,
         use_fewshot: bool = True
     ) -> Dict:
-        """이미지 분석 (Few-shot learning 적용)"""
+        """
+        이미지 분석 (Few-shot learning 적용)
+        
+        Args:
+            image_path: 이미지 파일 경로
+            category: 제품 카테고리 (힌트)
+            use_fewshot: Few-shot learning 사용 여부
+            
+        Returns:
+            Vision AI 분석 결과
+        """
         custom_prompt = None
         
         # Few-shot 프롬프트 생성 시도
