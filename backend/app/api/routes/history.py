@@ -113,15 +113,7 @@ async def delete_history(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """
-    히스토리 삭제
-    
-    Args:
-        history_id: 히스토리 ID
-    
-    Returns:
-        success 메시지
-    """
+    """히스토리 삭제"""
     # 본인 히스토리 확인
     history = db.query(GenerationHistory).filter(
         GenerationHistory.history_id == history_id,

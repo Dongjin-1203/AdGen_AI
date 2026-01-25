@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { historyAPI, authAPI } from '@/lib/api';
+import { historyAPI, authAPI, API_URL } from '@/lib/api';
 import { History } from '@/types';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export default function HistoryPage() {
   const router = useRouter();
@@ -15,30 +13,21 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [userId, setUserId] = useState<string | null>(null);
-  const [token, setToken] = useState<string>('');
   
   // 일괄 다운로드 관련
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  // ===== 초기 로드 =====
+  // ===== 초기 로드 (기존 방식 유지) =====
   useEffect(() => {
     const fetchHistories = async () => {
       try {
-        // 1. 토큰 가져오기
-        const storedToken = localStorage.getItem('token');
-        if (!storedToken) {
-          router.push('/login');
-          return;
-        }
-        setToken(storedToken);
-
-        // 2. 현재 사용자 정보 가져오기
+        // 1. 현재 사용자 정보 가져오기 (기존 방식)
         const userResponse = await authAPI.getMe();
         const currentUserId = userResponse.data.user_id;
         setUserId(currentUserId);
 
-        // 3. 히스토리 조회
+        // 2. 히스토리 조회 (기존 방식)
         const response = await historyAPI.getByUserId(currentUserId);
         setHistories(response.data);
       } catch (err: any) {
@@ -50,7 +39,7 @@ export default function HistoryPage() {
     };
 
     fetchHistories();
-  }, [router]);
+  }, []);
 
   // ===== 삭제 =====
   const handleDelete = async (historyId: string) => {
@@ -68,14 +57,13 @@ export default function HistoryPage() {
     }
   };
 
-  // ===== 단일 다운로드 =====
+  // ===== 단일 다운로드 (historyAPI 사용) =====
   const downloadVTONImage = async (historyId: string, style: string, createdAt: string) => {
     try {
+      // historyAPI를 사용하면 내부적으로 인증 처리됨
       const response = await fetch(`${API_URL}/api/v1/history/${historyId}/download`, {
         method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+        headers: historyAPI.defaults?.headers || {}  // 기존 헤더 사용
       });
 
       if (!response.ok) {
@@ -115,8 +103,8 @@ export default function HistoryPage() {
       const response = await fetch(`${API_URL}/api/v1/history/download-batch`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(historyAPI.defaults?.headers || {})
         },
         body: JSON.stringify(historyIds)
       });
@@ -142,7 +130,7 @@ export default function HistoryPage() {
     }
   };
 
-  // ===== 선택 토글 =====
+  // ===== 선택 관리 =====
   const toggleSelection = (historyId: string) => {
     setSelectedIds(prev => 
       prev.includes(historyId)
@@ -151,15 +139,13 @@ export default function HistoryPage() {
     );
   };
 
-  // ===== 선택 모드 변경 =====
   const handleSelectionModeChange = () => {
     setIsSelectionMode(!isSelectionMode);
     if (isSelectionMode) {
-      setSelectedIds([]); // 모드 종료 시 선택 초기화
+      setSelectedIds([]);
     }
   };
 
-  // ===== 일괄 다운로드 실행 =====
   const handleBatchDownload = () => {
     downloadMultipleVTON(selectedIds);
     setIsSelectionMode(false);
@@ -216,7 +202,7 @@ export default function HistoryPage() {
             <p className="text-gray-600 mt-1">총 {histories.length}개의 생성 결과</p>
           </div>
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push('/gallery')}
             className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
           >
             + 새로 만들기
@@ -224,35 +210,37 @@ export default function HistoryPage() {
         </div>
 
         {/* 일괄 다운로드 섹션 */}
-        <div className="mb-6 flex justify-between items-center">
-          <div className="flex gap-3">
-            <button
-              onClick={handleSelectionModeChange}
-              className={`px-4 py-2 rounded-lg transition-colors ${
-                isSelectionMode 
-                  ? 'bg-purple-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-              }`}
-            >
-              {isSelectionMode ? '선택 취소' : '일괄 다운로드'}
-            </button>
-
-            {isSelectionMode && selectedIds.length > 0 && (
+        {histories.length > 0 && (
+          <div className="mb-6 flex justify-between items-center">
+            <div className="flex gap-3">
               <button
-                onClick={handleBatchDownload}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                onClick={handleSelectionModeChange}
+                className={`px-4 py-2 rounded-lg transition-colors ${
+                  isSelectionMode 
+                    ? 'bg-purple-600 text-white' 
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
               >
-                📦 {selectedIds.length}개 다운로드
+                {isSelectionMode ? '선택 취소' : '일괄 다운로드'}
               </button>
+
+              {isSelectionMode && selectedIds.length > 0 && (
+                <button
+                  onClick={handleBatchDownload}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  📦 {selectedIds.length}개 다운로드
+                </button>
+              )}
+            </div>
+
+            {isSelectionMode && (
+              <span className="text-sm text-gray-500">
+                {selectedIds.length}개 선택됨
+              </span>
             )}
           </div>
-
-          {isSelectionMode && (
-            <span className="text-sm text-gray-500">
-              {selectedIds.length}개 선택됨
-            </span>
-          )}
-        </div>
+        )}
 
         {/* 히스토리 그리드 */}
         {histories.length === 0 ? (
@@ -260,7 +248,7 @@ export default function HistoryPage() {
             <div className="text-6xl mb-4">📭</div>
             <p className="text-gray-500 mb-4">아직 생성된 이미지가 없습니다.</p>
             <button
-              onClick={() => router.push('/dashboard')}
+              onClick={() => router.push('/gallery')}
               className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
             >
               첫 이미지 만들기
