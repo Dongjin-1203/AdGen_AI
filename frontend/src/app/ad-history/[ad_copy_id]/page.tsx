@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams} from 'next/navigation';
 import { api, API_URL } from '@/lib/api';
 
 interface AdCopyData {
@@ -21,9 +21,10 @@ interface AdCopyDetail {
   processing_time: number;
 }
 
-export default function AdCopyDetailPage({ params }: { params: { ad_copy_id: string } }) {
+export default function AdCopyDetailPage() {
   const router = useRouter();
-  const { ad_copy_id } = params;
+  const params = useParams();             
+  const ad_copy_id = params.ad_copy_id as string;
 
   const [adCopy, setAdCopy] = useState<AdCopyDetail | null>(null);
   const [loading, setLoading] = useState(true);
