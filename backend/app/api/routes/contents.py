@@ -716,7 +716,7 @@ async def generate_background(
     )
 
 
-@router.delete("/api/contents/{content_id}")
+@router.delete("/{content_id}")
 async def delete_content(
     content_id: str,
     db: Session = Depends(get_db),
