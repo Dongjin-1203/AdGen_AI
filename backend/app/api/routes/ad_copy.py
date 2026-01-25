@@ -463,6 +463,7 @@ async def download_ad_copy_image(
     Returns:
         PNG 이미지 파일
     """
+    from urllib.parse import quote
     
     print(f"\n📥 광고 이미지 다운로드 요청: {ad_copy_id}")
     
@@ -482,7 +483,7 @@ async def download_ad_copy_image(
         )
     
     # GCS에서 이미지 다운로드
-    from app.api.routes.history import download_from_gcs  # 재사용
+    from app.api.routes.history import download_from_gcs
     
     try:
         image_bytes = download_from_gcs(ad_copy.final_image_url)
@@ -494,12 +495,17 @@ async def download_ad_copy_image(
             detail=f"이미지 다운로드 실패: {str(e)}"
         )
     
-    # 파일명 생성
+    # ✅ 파일명 생성 (영문만 사용)
     created_date = ad_copy.created_at.strftime("%Y%m%d")
-    headline = ad_copy.ad_copy_data.get('headline', 'ad')[:20]  # 헤드라인 일부 사용
-    filename = f"ad_{ad_copy.template_used}_{headline}_{created_date}.png"
+    template = ad_copy.template_used
+    ad_id_short = ad_copy_id[:8]
     
-    # 다운로드 응답
+    # ASCII-safe 파일명 (영문, 숫자, 언더스코어만)
+    filename = f"ad_{template}_{created_date}_{ad_id_short}.png"
+    
+    print(f"📦 다운로드 파일명: {filename}")
+    
+    # ✅ Response 헤더 (URL 인코딩 없이 ASCII만)
     return Response(
         content=image_bytes,
         media_type="image/png",
@@ -508,7 +514,6 @@ async def download_ad_copy_image(
             "Content-Length": str(len(image_bytes))
         }
     )
-
 
 @router.delete("/ad-copy-history/{ad_copy_id}")
 async def delete_ad_copy(
