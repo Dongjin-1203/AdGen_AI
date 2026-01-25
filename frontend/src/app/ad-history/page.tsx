@@ -2,8 +2,22 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { authAPI, API_URL } from '@/lib/api';
+import axios from 'axios';
+
+// ✅ lib/api.ts와 동일한 axios 인스턴스 생성
+const apiClient = axios.create({
+  baseURL: API_URL,
+});
+
+// token을 자동으로 추가하는 interceptor
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
 
 // ===== 타입 정의 =====
 interface AdCopyData {
@@ -47,86 +61,65 @@ export default function AdCopyHistoryPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // ===== 인증 헤더 가져오기 =====
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  };
-
   // 초기화
   useEffect(() => {
     fetchStatistics();
     fetchAdCopyHistory();
   }, [page, selectedTemplate]);
 
-  // 통계 조회
+  // 통계 조회 (apiClient 사용)
   const fetchStatistics = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/v1/ad-copy-statistics`, {
-        headers: getAuthHeaders()
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStatistics(data);
-      }
-    } catch (error) {
+      const response = await apiClient.get('/api/v1/ad-copy-statistics');
+      setStatistics(response.data);
+    } catch (error: any) {
       console.error('통계 조회 실패:', error);
+      if (error.response?.status === 401) {
+        router.push('/login');
+      }
     }
   };
 
-  // 히스토리 조회
+  // 히스토리 조회 (apiClient 사용)
   const fetchAdCopyHistory = async () => {
     setLoading(true);
     setError('');
 
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: '12'
-      });
+      const params: any = {
+        page: page,
+        limit: 12
+      };
 
       if (selectedTemplate) {
-        params.append('template', selectedTemplate);
+        params.template = selectedTemplate;
       }
 
-      const response = await fetch(
-        `${API_URL}/api/v1/ad-copy-history?${params}`,
-        {
-          headers: getAuthHeaders()
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setAdCopies(data.results);
-        setTotalPages(data.total_pages);
-      } else {
-        throw new Error('히스토리 조회 실패');
-      }
-    } catch (error) {
+      const response = await apiClient.get('/api/v1/ad-copy-history', { params });
+      setAdCopies(response.data.results);
+      setTotalPages(response.data.total_pages);
+    } catch (error: any) {
       console.error('히스토리 조회 실패:', error);
-      setError('광고 히스토리를 불러올 수 없습니다.');
+      if (error.response?.status === 401) {
+        setError('인증이 만료되었습니다. 다시 로그인해주세요.');
+        setTimeout(() => router.push('/login'), 2000);
+      } else {
+        setError('광고 히스토리를 불러올 수 없습니다.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  // 이미지 다운로드
+  // 이미지 다운로드 (apiClient 사용)
   const downloadImage = async (adCopyId: string, headline: string) => {
     try {
-      const response = await fetch(
-        `${API_URL}/api/v1/ad-copy-history/${adCopyId}/download`,
-        {
-          headers: getAuthHeaders()
-        }
+      const response = await apiClient.get(
+        `/api/v1/ad-copy-history/${adCopyId}/download`,
+        { responseType: 'blob' }
       );
 
-      if (!response.ok) {
-        throw new Error('다운로드 실패');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'image/png' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -137,37 +130,39 @@ export default function AdCopyHistoryPage() {
       window.URL.revokeObjectURL(url);
 
       console.log('✅ 다운로드 완료');
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 다운로드 실패:', error);
-      alert('이미지 다운로드에 실패했습니다.');
+      if (error.response?.status === 401) {
+        alert('인증이 만료되었습니다. 다시 로그인해주세요.');
+        router.push('/login');
+      } else {
+        alert('이미지 다운로드에 실패했습니다.');
+      }
     }
   };
 
-  // 상세보기
+  // 상세보기 (apiClient 사용)
   const viewDetail = async (adCopyId: string) => {
     try {
-      const response = await fetch(
-        `${API_URL}/api/v1/ad-copy-history/${adCopyId}`,
-        {
-          headers: getAuthHeaders()
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // 모달이나 새 페이지로 상세 정보 표시
-        alert(`
+      const response = await apiClient.get(`/api/v1/ad-copy-history/${adCopyId}`);
+      const data = response.data;
+      
+      // 모달이나 새 페이지로 상세 정보 표시
+      alert(`
 광고 ID: ${data.ad_copy_id}
 템플릿: ${data.template_used}
 제품명: ${data.product_name}
 카테고리: ${data.category}
 처리 시간: ${data.processing_time}초
-        `);
-      }
-    } catch (error) {
+      `);
+    } catch (error: any) {
       console.error('상세 조회 실패:', error);
-      alert('상세 정보를 불러올 수 없습니다.');
+      if (error.response?.status === 401) {
+        alert('인증이 만료되었습니다. 다시 로그인해주세요.');
+        router.push('/login');
+      } else {
+        alert('상세 정보를 불러올 수 없습니다.');
+      }
     }
   };
 

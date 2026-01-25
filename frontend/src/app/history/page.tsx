@@ -5,6 +5,27 @@ import { useRouter } from 'next/navigation';
 import { historyAPI, authAPI, API_URL } from '@/lib/api';
 import { History } from '@/types';
 
+// ✅ lib/api.ts에서 제공하는 axios 인스턴스 import
+// 방법 1: api 객체가 export되어 있으면
+import { api } from '@/lib/api';
+
+// 방법 2: api 객체가 없으면 axios를 직접 사용하되 같은 설정 적용
+import axios from 'axios';
+
+// lib/api.ts에서 사용하는 것과 동일한 axios 인스턴스 생성
+const apiClient = axios.create({
+  baseURL: API_URL,
+});
+
+// token을 자동으로 추가하는 interceptor
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 export default function HistoryPage() {
   const router = useRouter();
   
@@ -18,16 +39,14 @@ export default function HistoryPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
-  // ===== 초기 로드 (기존 방식 유지) =====
+  // ===== 초기 로드 =====
   useEffect(() => {
     const fetchHistories = async () => {
       try {
-        // 1. 현재 사용자 정보 가져오기 (기존 방식)
         const userResponse = await authAPI.getMe();
         const currentUserId = userResponse.data.user_id;
         setUserId(currentUserId);
 
-        // 2. 히스토리 조회 (기존 방식)
         const response = await historyAPI.getByUserId(currentUserId);
         setHistories(response.data);
       } catch (err: any) {
@@ -57,25 +76,16 @@ export default function HistoryPage() {
     }
   };
 
-  // ===== 인증 헤더 가져오기 =====
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
-  };
-
-  // ===== 단일 다운로드 =====
+  // ===== 단일 다운로드 (apiClient 사용) =====
   const downloadVTONImage = async (historyId: string, style: string, createdAt: string) => {
     try {
-      const response = await fetch(`${API_URL}/api/v1/history/${historyId}/download`, {
-        method: 'GET',
-        headers: getAuthHeaders()
-      });
+      // ✅ apiClient 사용 (interceptor 적용됨)
+      const response = await apiClient.get(
+        `/api/v1/history/${historyId}/download`,
+        { responseType: 'blob' }
+      );
 
-      if (!response.ok) {
-        throw new Error('다운로드 실패');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'image/png' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -86,9 +96,14 @@ export default function HistoryPage() {
       window.URL.revokeObjectURL(url);
 
       console.log('✅ 다운로드 완료');
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 다운로드 실패:', error);
-      alert('이미지 다운로드에 실패했습니다.');
+      if (error.response?.status === 401) {
+        alert('인증이 만료되었습니다. 다시 로그인해주세요.');
+        router.push('/login');
+      } else {
+        alert('이미지 다운로드에 실패했습니다.');
+      }
     }
   };
 
@@ -105,20 +120,13 @@ export default function HistoryPage() {
     }
 
     try {
-      const response = await fetch(`${API_URL}/api/v1/history/download-batch`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(historyIds)
-      });
+      const response = await apiClient.post(
+        `/api/v1/history/download-batch`,
+        historyIds,
+        { responseType: 'blob' }
+      );
 
-      if (!response.ok) {
-        throw new Error('일괄 다운로드 실패');
-      }
-
-      const blob = await response.blob();
+      const blob = new Blob([response.data], { type: 'application/zip' });
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -129,9 +137,14 @@ export default function HistoryPage() {
       window.URL.revokeObjectURL(url);
 
       console.log(`✅ ${historyIds.length}개 일괄 다운로드 완료`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ 일괄 다운로드 실패:', error);
-      alert('일괄 다운로드에 실패했습니다.');
+      if (error.response?.status === 401) {
+        alert('인증이 만료되었습니다. 다시 로그인해주세요.');
+        router.push('/login');
+      } else {
+        alert('일괄 다운로드에 실패했습니다.');
+      }
     }
   };
 
