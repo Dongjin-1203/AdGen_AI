@@ -1,10 +1,12 @@
 """
-콘텐츠 API 라우터 (보상 기반 학습 시스템 통합)
-/api/contents/upload - 이미지 업로드 + AI 예측 저장
+콘텐츠 API 라우터 (보상 기반 학습 + Few-shot Learning 통합)
+/api/contents/upload - 이미지 업로드 + AI 예측 저장 (Few-shot 적용)
 /api/contents - 콘텐츠 목록
 /api/contents/{id} - 콘텐츠 상세
 /api/contents/{id} (PATCH) - 콘텐츠 수정 + 보상 점수 계산
 /api/contents/{id}/generate-background - 배경 생성
+/api/contents/stats/rewards - 보상 통계
+/api/contents/stats/fewshot - Few-shot 통계
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Body
@@ -32,6 +34,9 @@ from app.api.routes.auth import get_current_user
 from config import settings
 from app.services.vision.product_analyzer import ProductAnalyzer
 from app.services.img_processing.background_removal import BackgroundRemovalService
+
+# ⭐ Few-shot Learning import
+from app.services.fewshot_vision import EnhancedVisionAnalyzer, FewShotVisionAnalyzer
 
 router = APIRouter(prefix="/api/contents", tags=["Contents"])
 
@@ -79,7 +84,7 @@ def get_background_remover():
     return _background_remover
 
 
-# ===== 업로드 엔드포인트 (보상 기반 학습 통합) =====
+# ===== 업로드 엔드포인트 (보상 기반 학습 + Few-shot Learning 통합) =====
 
 @router.post("/upload", response_model=ContentResponse, status_code=status.HTTP_201_CREATED)
 async def upload_content(
@@ -95,7 +100,7 @@ async def upload_content(
     이미지 업로드 및 콘텐츠 생성 (GCS 저장 + Vision AI + AI 예측 저장)
     
     ⭐ 보상 기반 학습 시스템 통합:
-    1. Vision AI 분석
+    1. Vision AI 분석 (Few-shot Learning 적용)
     2. AIPrediction 저장 (AI 초기 예측)
     3. UserContent 저장 (예측 결과 포함)
     """
@@ -164,7 +169,7 @@ async def upload_content(
     except Exception as e:
         print(f"❌ Thumbnail Upload Error: {e}")
     
-    # ===== 3. Vision AI 분석 =====
+    # ===== 3. ⭐ Vision AI 분석 (Few-shot Learning 적용) =====
     vision_data = {}
 
     try:
@@ -174,13 +179,20 @@ async def upload_content(
             tmp_path = tmp_file.name
         
         print(f"\n{'='*60}")
-        print(f"🔍 Vision AI 분석 시작")
+        print(f"🔍 Vision AI 분석 시작 (Few-shot Learning)")
         print(f"{'='*60}")
         print(f"임시 파일: {tmp_path}")
+        print(f"카테고리 힌트: {category}")
 
-        # Vision AI 분석
-        analyzer = ProductAnalyzer(provider="gemini")
-        vision_result = await analyzer.analyze(tmp_path)
+        # ⭐ Few-shot Vision Analyzer 사용
+        base_analyzer = ProductAnalyzer(provider="gemini")
+        enhanced_analyzer = EnhancedVisionAnalyzer(db, base_analyzer)
+        
+        vision_result = await enhanced_analyzer.analyze(
+            tmp_path,
+            category=category,
+            use_fewshot=True  # ⭐ Few-shot 활성화
+        )
         
         # 임시 파일 삭제
         os.unlink(tmp_path)
@@ -197,7 +209,7 @@ async def upload_content(
                 'style_tags': vision_result.get('style_tags', []),  # List 유지
                 'ai_confidence': vision_result.get('confidence')
             }
-            print(f"✅ Vision AI 분석 완료: {vision_data['category']}, {vision_data['color']}")
+            print(f"✅ Vision AI 분석 완료 (Few-shot): {vision_data['category']}, {vision_data['color']}")
         else:
             print(f"⚠️ Vision AI 분석 실패: {vision_result.get('error')}")
 
@@ -464,6 +476,104 @@ async def update_content(
     return response
 
 
+# ===== 콘텐츠 삭제 =====
+
+@router.delete("/{content_id}")
+async def delete_content(
+    content_id: str,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    콘텐츠 삭제 (관련 데이터 모두 삭제)
+    
+    삭제 순서:
+    1. AdCopyHistory (최종 광고)
+    2. CaptionCorrection (캡션 수정)
+    3. AdCaption (광고 캡션)
+    4. RewardScore (보상 점수)
+    5. UserCorrection (사용자 수정)
+    6. AIPrediction (AI 예측)
+    7. GenerationHistory (생성 히스토리)
+    8. UserContent (콘텐츠)
+    """
+    
+    # 1. 콘텐츠 조회 및 권한 확인
+    content = db.query(UserContent).filter(
+        UserContent.content_id == content_id,
+        UserContent.user_id == current_user.user_id
+    ).first()
+    
+    if not content:
+        raise HTTPException(
+            status_code=404,
+            detail="콘텐츠를 찾을 수 없거나 접근 권한이 없습니다."
+        )
+    
+    try:
+        # 2. AdCopyHistory 삭제
+        from app.models.caption_system import AdCopyHistory
+        db.query(AdCopyHistory).filter(
+            AdCopyHistory.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # 3. CaptionCorrection 삭제 (AdCaption을 통해)
+        from app.models.caption_system import AdCaption, CaptionCorrection
+        caption_ids = [c.caption_id for c in db.query(AdCaption).filter(
+            AdCaption.content_id == content_id
+        ).all()]
+        
+        if caption_ids:
+            db.query(CaptionCorrection).filter(
+                CaptionCorrection.caption_id.in_(caption_ids)
+            ).delete(synchronize_session=False)
+        
+        # 4. AdCaption 삭제
+        db.query(AdCaption).filter(
+            AdCaption.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # 5. RewardScore 삭제
+        db.query(RewardScore).filter(
+            RewardScore.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # 6. UserCorrection 삭제
+        db.query(UserCorrection).filter(
+            UserCorrection.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # 7. AIPrediction 삭제
+        db.query(AIPrediction).filter(
+            AIPrediction.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # 8. GenerationHistory 삭제
+        from app.models.schemas import GenerationHistory
+        db.query(GenerationHistory).filter(
+            GenerationHistory.content_id == content_id
+        ).delete(synchronize_session=False)
+        
+        # 9. 마지막으로 UserContent 삭제
+        db.delete(content)
+        
+        # 10. 커밋
+        db.commit()
+        
+        return {
+            "success": True,
+            "message": "콘텐츠가 성공적으로 삭제되었습니다.",
+            "deleted_content_id": content_id
+        }
+        
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"삭제 중 오류가 발생했습니다: {str(e)}"
+        )
+
+
 # ===== 통계 API (보상 기반 학습) =====
 
 @router.get("/stats/rewards")
@@ -525,6 +635,124 @@ async def get_reward_stats(
         "accuracy": {
             "overall": round((1 - (total_corrections / (total_predictions * 6))) * 100, 2) if total_predictions else 100.0
         }
+    }
+
+
+# ===== ⭐ Few-shot Learning 통계 API =====
+
+@router.get("/stats/fewshot")
+async def get_fewshot_statistics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Few-shot Learning 통계 조회
+    
+    Returns:
+        - 카테고리별 정확도
+        - 고품질 예시 개수
+        - Few-shot 사용 가능 여부
+    """
+    
+    fewshot = FewShotVisionAnalyzer(db)
+    
+    # 카테고리별 통계
+    category_stats = fewshot.get_category_statistics()
+    
+    # 필드별 오류 패턴
+    error_patterns = fewshot.get_field_error_patterns()
+    
+    # 전체 통계
+    total_examples = sum(
+        stats['high_quality_examples'] 
+        for stats in category_stats.values()
+    )
+    
+    avg_accuracy = sum(
+        stats['avg_accuracy'] 
+        for stats in category_stats.values()
+    ) / len(category_stats) if category_stats else 0
+    
+    return {
+        "summary": {
+            "total_high_quality_examples": total_examples,
+            "average_accuracy": round(avg_accuracy, 2),
+            "categories_with_fewshot": sum(
+                1 for stats in category_stats.values() 
+                if stats['can_use_fewshot']
+            ),
+            "total_categories": len(category_stats)
+        },
+        "category_statistics": category_stats,
+        "error_patterns": error_patterns
+    }
+
+
+@router.get("/fewshot/examples/{category}")
+async def get_fewshot_examples(
+    category: str,
+    limit: int = 5,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    특정 카테고리의 Few-shot 예시 조회
+    
+    Args:
+        category: 카테고리 (상의/하의/드레스 등)
+        limit: 최대 예시 수
+    """
+    
+    fewshot = FewShotVisionAnalyzer(db)
+    
+    examples = fewshot.get_high_quality_examples(
+        category=category,
+        limit=limit
+    )
+    
+    if not examples:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{category}' 카테고리의 고품질 예시가 없습니다."
+        )
+    
+    return {
+        "category": category,
+        "count": len(examples),
+        "examples": examples
+    }
+
+
+@router.post("/fewshot/test")
+async def test_fewshot_prompt(
+    category: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Few-shot 프롬프트 미리보기 (디버깅용)
+    
+    Args:
+        category: 카테고리
+    """
+    
+    fewshot = FewShotVisionAnalyzer(db)
+    
+    prompt = fewshot.build_fewshot_prompt(category)
+    
+    if not prompt:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{category}' 카테고리의 Few-shot 예시가 부족합니다."
+        )
+    
+    examples = fewshot.get_high_quality_examples(category)
+    
+    return {
+        "category": category,
+        "prompt": prompt,
+        "examples_count": len(examples),
+        "prompt_length": len(prompt)
     }
 
 
@@ -714,102 +942,3 @@ async def generate_background(
         style=request.style,
         processing_time=processing_time
     )
-
-
-@router.delete("/{content_id}")
-async def delete_content(
-    content_id: str,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user)
-):
-    """
-    콘텐츠 삭제 (관련 데이터 모두 삭제)
-    
-    삭제 순서:
-    1. AdCopyHistory (최종 광고)
-    2. CaptionCorrection (캡션 수정)
-    3. AdCaption (광고 캡션)
-    4. RewardScore (보상 점수)
-    5. UserCorrection (사용자 수정)
-    6. AIPrediction (AI 예측)
-    7. GenerationHistory (생성 히스토리)
-    8. UserContent (콘텐츠)
-    """
-    
-    # 1. 콘텐츠 조회 및 권한 확인
-    content = db.query(UserContent).filter(
-        UserContent.content_id == content_id,
-        UserContent.user_id == current_user.user_id
-    ).first()
-    
-    if not content:
-        raise HTTPException(
-            status_code=404,
-            detail="콘텐츠를 찾을 수 없거나 접근 권한이 없습니다."
-        )
-    
-    try:
-        # 2. AdCopyHistory 삭제
-        from app.models.caption_system import AdCopyHistory
-        db.query(AdCopyHistory).filter(
-            AdCopyHistory.content_id == content_id
-        ).delete(synchronize_session=False)
-        
-        # 3. CaptionCorrection 삭제 (AdCaption을 통해)
-        from app.models.caption_system import AdCaption, CaptionCorrection
-        caption_ids = [c.caption_id for c in db.query(AdCaption).filter(
-            AdCaption.content_id == content_id
-        ).all()]
-        
-        if caption_ids:
-            db.query(CaptionCorrection).filter(
-                CaptionCorrection.caption_id.in_(caption_ids)
-            ).delete(synchronize_session=False)
-        
-        # 4. AdCaption 삭제
-        db.query(AdCaption).filter(
-            AdCaption.content_id == content_id
-        ).delete(synchronize_session=False)
-        
-        # 5. RewardScore 삭제
-        from app.models.reward_system import RewardScore
-        db.query(RewardScore).filter(
-            RewardScore.content_id == content_id
-        ).delete(synchronize_session=False)
-        
-        # 6. UserCorrection 삭제
-        from app.models.reward_system import UserCorrection
-        db.query(UserCorrection).filter(
-            UserCorrection.content_id == content_id
-        ).delete(synchronize_session=False)
-        
-        # 7. AIPrediction 삭제
-        from app.models.reward_system import AIPrediction
-        db.query(AIPrediction).filter(
-            AIPrediction.content_id == content_id
-        ).delete(synchronize_session=False)
-        
-        # 8. GenerationHistory 삭제
-        from app.models.schemas import GenerationHistory
-        db.query(GenerationHistory).filter(
-            GenerationHistory.content_id == content_id
-        ).delete(synchronize_session=False)
-        
-        # 9. 마지막으로 UserContent 삭제
-        db.delete(content)
-        
-        # 10. 커밋
-        db.commit()
-        
-        return {
-            "success": True,
-            "message": "콘텐츠가 성공적으로 삭제되었습니다.",
-            "deleted_content_id": content_id
-        }
-        
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"삭제 중 오류가 발생했습니다: {str(e)}"
-        )
