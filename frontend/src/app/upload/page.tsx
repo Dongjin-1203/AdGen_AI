@@ -25,6 +25,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>(''); // ⭐ 카테고리 선택
   
   // 2단계: Vision AI 분석 결과
   const [visionResult, setVisionResult] = useState<VisionResult | null>(null);
@@ -121,7 +122,7 @@ export default function UploadPage() {
     }
   };
 
-  // ⭐ 1단계: 업로드 + Vision AI 분석
+  // ⭐ 1단계: 업로드 + Vision AI 분석 (카테고리 포함)
   const handleUpload = async () => {
     if (!file) {
       setError('이미지를 선택해주세요.');
@@ -136,6 +137,12 @@ export default function UploadPage() {
       
       const formData = new FormData();
       formData.append('file', file);
+      
+      // ⭐ 카테고리 전달 (Few-shot Learning 활성화)
+      if (selectedCategory) {
+        formData.append('category', selectedCategory);
+        console.log('🎯 카테고리 전달:', selectedCategory);
+      }
 
       const response = await fetch(`${API_URL}/api/contents/upload`, {
         method: 'POST',
@@ -257,6 +264,32 @@ export default function UploadPage() {
               onChange={handleFileChange}
               className="hidden"
             />
+
+            {/* ⭐ 카테고리 선택 (Few-shot Learning 활성화) */}
+            {file && (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <label className="block mb-2 text-sm font-medium text-gray-700">
+                  제품 카테고리 (선택) <span className="text-blue-600">✨ AI 정확도 향상</span>
+                </label>
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 text-lg"
+                >
+                  <option value="">선택 안함</option>
+                  <option value="상의">상의</option>
+                  <option value="하의">하의</option>
+                  <option value="아우터">아우터</option>
+                  <option value="원피스">원피스</option>
+                  <option value="신발">신발</option>
+                  <option value="가방">가방</option>
+                  <option value="액세서리">액세서리</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500">
+                  💡 카테고리를 선택하면 AI가 더 정확하게 분석합니다 (Few-shot Learning)
+                </p>
+              </div>
+            )}
 
             {file && (
               <button
@@ -483,6 +516,7 @@ export default function UploadPage() {
                   setPreviewUrl(null);
                   setVisionResult(null);
                   setIsEditing(false);
+                  setSelectedCategory('');
                 }}
                 className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition"
               >
