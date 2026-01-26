@@ -68,7 +68,7 @@ class GenerationHistory(Base):
     """AI 광고 생성 기록 (히스토리)"""
     __tablename__ = 'generation_history'
     
-    history_id = Column(String(36), primary_key=True)
+    generation_id = Column(String(36), primary_key=True)
     content_id = Column(
         String(36), 
         ForeignKey("user_contents.content_id", ondelete="CASCADE"), 
