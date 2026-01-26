@@ -114,6 +114,8 @@ async def delete_history(
     db: Session = Depends(get_db)
 ):
     """히스토리 삭제"""
+    from app.models.caption_system import AdCaption, AdCopyHistory
+    
     # 본인 히스토리 확인
     history = db.query(GenerationHistory).filter(
         GenerationHistory.generation_id == history_id,
@@ -126,7 +128,16 @@ async def delete_history(
             detail="History not found or not authorized"
         )
     
-    # 삭제
+    # ⭐ 관련 데이터 수동 삭제 (CASCADE 수동 구현)
+    db.query(AdCaption).filter(
+        AdCaption.generation_id == history_id
+    ).delete(synchronize_session=False)
+    
+    db.query(AdCopyHistory).filter(
+        AdCopyHistory.generation_id == history_id
+    ).delete(synchronize_session=False)
+    
+    # 히스토리 삭제
     db.delete(history)
     db.commit()
     
