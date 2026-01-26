@@ -130,7 +130,7 @@ async def generate_ad_copy(
     ).first()
     
     generation = db.query(GenerationHistory).filter(
-        GenerationHistory.history_id == caption.generation_id
+        GenerationHistory.generation_id == caption.generation_id
     ).first()
     
     if not content or not generation:
@@ -357,7 +357,7 @@ async def get_ad_copy_history(
     # 기본 쿼리
     query = db.query(AdCopyHistory)\
         .join(UserContent, AdCopyHistory.content_id == UserContent.content_id)\
-        .join(GenerationHistory, AdCopyHistory.generation_id == GenerationHistory.history_id)\
+        .join(GenerationHistory, AdCopyHistory.generation_id == GenerationHistory.generation_id)\
         .filter(AdCopyHistory.user_id == current_user.user_id)
     
     # 템플릿 필터
@@ -419,7 +419,7 @@ async def get_ad_copy_detail(
     
     ad_copy = db.query(AdCopyHistory)\
         .join(UserContent, AdCopyHistory.content_id == UserContent.content_id)\
-        .join(GenerationHistory, AdCopyHistory.generation_id == GenerationHistory.history_id)\
+        .join(GenerationHistory, AdCopyHistory.generation_id == GenerationHistory.generation_id)\
         .filter(
             AdCopyHistory.ad_copy_id == ad_copy_id,
             AdCopyHistory.user_id == current_user.user_id

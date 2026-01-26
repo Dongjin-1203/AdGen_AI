@@ -29,7 +29,7 @@ class AdCaption(Base):
     )
     generation_id = Column(
         String(36), 
-        ForeignKey("generation_history.history_id", ondelete="CASCADE"), 
+        ForeignKey("generation_history.generation_id", ondelete="CASCADE"), 
         nullable=False,
         index=True
     )
@@ -120,7 +120,7 @@ class AdCopyHistory(Base):
     )
     generation_id = Column(
         String(36), 
-        ForeignKey("generation_history.history_id", ondelete="CASCADE"), 
+        ForeignKey("generation_history.generation_id", ondelete="CASCADE"), 
         nullable=False,
         index=True
     )

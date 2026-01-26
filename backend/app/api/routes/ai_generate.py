@@ -231,7 +231,7 @@ async def generate_ad_from_content(
         
         return {
             "success": True,
-            "history_id": new_history.history_id,  
+            "history_id": new_history.generation_id,  
             "result_url": result_url,
             "processing_time": round(processing_time, 2),
             "generation_method": generation_method,
@@ -430,7 +430,7 @@ async def generate_fashion_ad(
         
         return {
             "success": True,
-            "history_id": new_history.history_id,  
+            "history_id": new_history.generation_id,  
             "result_url": result_url,
             "processing_time": round(processing_time, 2),
             "generation_method": generation_method,
@@ -611,7 +611,7 @@ async def generate_ad_with_gemini(
         
         return {
             "success": True,
-            "history_id": new_history.history_id,  
+            "history_id": new_history.generation_id,  
             "result_url": result_url,
             "processing_time": round(processing_time, 2),
             "generation_method": generation_method,
@@ -764,7 +764,7 @@ async def generate_ad_with_replicate(
         
         return {
             "success": True,
-            "history_id": new_history.history_id,
+            "history_id": new_history.generation_id,
             "result_url": result_url,
             "processing_time": round(processing_time, 2),
             "generation_method": generation_method,

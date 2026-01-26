@@ -91,7 +91,7 @@ async def get_user_history(
     result = []
     for history, original_image_url, product_name in histories:
         history_dict = {
-            "history_id": history.history_id,
+            "history_id": history.generation_id,
             "content_id": history.content_id,
             "user_id": history.user_id,
             "style": history.style,
@@ -116,7 +116,7 @@ async def delete_history(
     """히스토리 삭제"""
     # 본인 히스토리 확인
     history = db.query(GenerationHistory).filter(
-        GenerationHistory.history_id == history_id,
+        GenerationHistory.generation_id == history_id,
         GenerationHistory.user_id == current_user.user_id
     ).first()
     
@@ -193,7 +193,7 @@ async def download_vton_result(
     
     # 1. GenerationHistory 조회
     history = db.query(GenerationHistory).filter(
-        GenerationHistory.history_id == history_id,
+        GenerationHistory.generation_id == history_id,
         GenerationHistory.user_id == current_user.user_id
     ).first()
     
@@ -266,7 +266,7 @@ async def download_multiple_vton_results(
         for idx, history_id in enumerate(history_ids, 1):
             # 히스토리 조회
             history = db.query(GenerationHistory).filter(
-                GenerationHistory.history_id == history_id,
+                GenerationHistory.generation_id == history_id,
                 GenerationHistory.user_id == current_user.user_id
             ).first()
             
@@ -320,7 +320,7 @@ async def preview_vton_result(
     
     # GenerationHistory 조회
     history = db.query(GenerationHistory).filter(
-        GenerationHistory.history_id == history_id,
+        GenerationHistory.generation_id == history_id,
         GenerationHistory.user_id == current_user.user_id
     ).first()
     

@@ -94,4 +94,4 @@ class GenerationHistory(Base):
     user = relationship("User", backref="generation_history")
     
     def __repr__(self):
-        return f"<GenerationHistory(history_id={self.history_id}, style={self.style})>"
+        return f"<GenerationHistory(generation_id={self.generation_id}, style={self.style})>"
