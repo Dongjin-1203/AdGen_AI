@@ -1,30 +1,35 @@
 """
-Models package
-모든 SQLAlchemy 모델을 import하여 Alembic이 인식할 수 있도록 설정
+Database Models
 """
 from .schemas import (
     User,
-    Shop,
-    Product,
     UserContent,
     GenerationHistory
 )
-
 from .reward_system import (
     AIPrediction,
     UserCorrection,
     RewardScore
 )
+from .caption_system import (
+    AdCaption,
+    CaptionCorrection,
+    AdCopyHistory
+)
 
 __all__ = [
-    # 기존 모델
+    # schemas.py
     "User",
-    "Shop",
-    "Product",
     "UserContent",
     "GenerationHistory",
-    # 보상 기반 학습 모델
+    
+    # reward_system.py
     "AIPrediction",
     "UserCorrection",
     "RewardScore",
+    
+    # caption_system.py
+    "AdCaption",
+    "CaptionCorrection",
+    "AdCopyHistory"
 ]

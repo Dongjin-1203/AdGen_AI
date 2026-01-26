@@ -18,8 +18,15 @@ from config import settings
 from app.db.base import Base
 # 모든 모델 import (Alembic autogenerate를 위해 필요)
 from app.models import (
-    User, Shop, Product, UserContent, GenerationHistory,
-    AIPrediction, UserCorrection, RewardScore
+    User,
+    UserContent,
+    GenerationHistory,
+    AIPrediction,
+    UserCorrection,
+    RewardScore,
+    AdCaption,
+    CaptionCorrection,
+    AdCopyHistory
 )
 
 # this is the Alembic Config object, which provides
