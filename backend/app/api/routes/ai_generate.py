@@ -212,7 +212,7 @@ async def generate_ad_from_content(
         
         # ===== 6. 히스토리 저장 ===== 
         new_history = GenerationHistory(
-            history_id=str(uuid.uuid4()),
+            generation_id=str(uuid.uuid4()),
             content_id=content_id,
             user_id=current_user.user_id, 
             style=style,
@@ -226,7 +226,7 @@ async def generate_ad_from_content(
         db.refresh(new_history)
         
         logger.info(f"[AI Generate] Completed in {processing_time:.2f}s (via {generation_method})")
-        logger.info(f"[AI Generate] History saved: {new_history.history_id}")
+        logger.info(f"[AI Generate] History saved: {new_history.generation_id}")
         logger.info(f"[AI Generate] Result URL: {result_url}")
         
         return {
@@ -411,7 +411,7 @@ async def generate_fashion_ad(
         
         # ===== 6. 히스토리 저장 ===== 
         new_history = GenerationHistory(
-            history_id=str(uuid.uuid4()),
+            generation_id=str(uuid.uuid4()),
             content_id=content_id,
             user_id=current_user.user_id, 
             style=style,
@@ -425,7 +425,7 @@ async def generate_fashion_ad(
         db.refresh(new_history)
         
         logger.info(f"[Fashion Ad] Completed in {processing_time:.2f}s (via {generation_method})")
-        logger.info(f"[Fashion Ad] History saved: {new_history.history_id}")
+        logger.info(f"[Fashion Ad] History saved: {new_history.generation_id}")
         logger.info(f"[Fashion Ad] Result URL: {result_url}")
         
         return {
@@ -592,7 +592,7 @@ async def generate_ad_with_gemini(
         
         # ===== 5. 히스토리 저장 ===== 
         new_history = GenerationHistory(
-            history_id=str(uuid.uuid4()),
+            generation_id=str(uuid.uuid4()),
             content_id=content_id,
             user_id=current_user.user_id, 
             style=style,
@@ -606,7 +606,7 @@ async def generate_ad_with_gemini(
         db.refresh(new_history)
         
         logger.info(f"[Gemini Ad] Completed in {processing_time:.2f}s (via {generation_method})")
-        logger.info(f"[Gemini Ad] History saved: {new_history.history_id}")
+        logger.info(f"[Gemini Ad] History saved: {new_history.generation_id}")
         logger.info(f"[Gemini Ad] Result URL: {result_url}")
         
         return {
@@ -745,7 +745,7 @@ async def generate_ad_with_replicate(
         
         # ===== 5. 히스토리 저장 =====
         new_history = GenerationHistory(
-            history_id=str(uuid.uuid4()),
+            generation_id=str(uuid.uuid4()),
             content_id=content_id,
             user_id=current_user.user_id,
             style=style,
@@ -759,7 +759,7 @@ async def generate_ad_with_replicate(
         db.refresh(new_history)
         
         logger.info(f"[Replicate VTON] Completed in {processing_time:.2f}s")
-        logger.info(f"[Replicate VTON] History saved: {new_history.history_id}")
+        logger.info(f"[Replicate VTON] History saved: {new_history.generation_id}")
         logger.info(f"[Replicate VTON] Result URL: {result_url}")
         
         return {
