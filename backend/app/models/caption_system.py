@@ -52,7 +52,7 @@ class AdCaption(Base):
     # 관계
     content = relationship("UserContent", backref="ad_captions")
     user = relationship("User", backref="ad_captions")
-    generation = relationship("GenerationHistory", backref="ad_caption")
+    generation = relationship("GenerationHistory", backref="ad_caption", passive_deletes=True)
     
     def __repr__(self):
         return f"<AdCaption(caption_id={self.caption_id}, is_modified={self.is_modified})>"
@@ -141,7 +141,7 @@ class AdCopyHistory(Base):
     content = relationship("UserContent", backref="ad_copies")
     user = relationship("User", backref="ad_copies")
     caption = relationship("AdCaption", backref="ad_copy")
-    generation = relationship("GenerationHistory", backref="ad_copy")
+    generation = relationship("GenerationHistory", backref="ad_copy", passive_deletes=True)
     
     def __repr__(self):
         return f"<AdCopyHistory(ad_copy_id={self.ad_copy_id}, template={self.template_used})>"
