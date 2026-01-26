@@ -138,7 +138,7 @@ async def generate_caption(
     # 3. GenerationHistory 조회
     if request.generation_id:
         generation = db.query(GenerationHistory).filter(
-            GenerationHistory.history_id == request.generation_id,
+            GenerationHistory.generation_id == request.generation_id,
             GenerationHistory.user_id == current_user.user_id
         ).first()
     else:
@@ -237,7 +237,7 @@ async def generate_caption(
         caption_id=caption_id,
         content_id=request.content_id,
         user_id=current_user.user_id,
-        generation_id=generation.history_id,
+        generation_id=generation.generation_id,
         ai_caption=ai_caption,
         ai_confidence=ai_confidence,
         final_caption=ai_caption,  # 초기값은 AI 캡션과 동일
