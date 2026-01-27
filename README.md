@@ -1024,7 +1024,7 @@ passlib[bcrypt]==1.7.4     # 비밀번호 암호화
 
 ### 프로젝트 문서
 - [발표자료](https://www.canva.com/design/DAG_Lw0vXPk/aTAI07Uuuar3w342GAEalQ/edit?utm_content=DAG_Lw0vXPk&utm_campaign=designshare&utm_medium=link2&utm_source=sharebutton)
-- [개발 최종 보고서](추후 추가 예정)
+- [개발_최종_보고서](https://www.notion.so/2f13cbcf570380cc8e5ce8ca0db9a196?source=copy_link)
 
 ### 협업 일지
 - 지동진 ([개인 협업일지](https://www.notion.so/2d83cbcf570381d683b1da76297197fe?v=2d83cbcf57038102b8a8000c33561b4e&source=copy_link))
