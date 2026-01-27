@@ -2,9 +2,9 @@
 
 ---
 
-## 서비스 시연 영상
-<!-- TODO: 서비스 시연 GIF 또는 동영상 추가 -->
-![service_demo](링크 추가 예정)
+## 서비스 대시보드 화면
+<img width="1065" height="756" alt="image" src="https://github.com/user-attachments/assets/b577f652-bf29-493d-befe-d2a4ab73e94d" />
+
 
 ## 실시간 데모
 
